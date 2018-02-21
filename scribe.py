@@ -7,35 +7,43 @@ import random
 import os
 import os.path
 
-# stuff to do:
-# 1: finish reading migration guide nad make sure no goofs were done DONE HOPEFULLY
-# 2: add a list of (user, channel) tuples to identify which user/channels are in the pinning process DONE
-# 3: use channel.history() for search DONE
-# 4: ???
+# TODO:
+# 2. reactions
+
+# MAYBEDO:
+# create its own directories
 
 class Scribe(discord.Client):
-    pinning = []
+    #pinning = []
 
     async def find_message(self, msg, channel, count=0, silent=False, raw_string=False):
         # msg is either a string to search for *or* a message id *or* a list of words
-        # *or* an int of messages to go forward/back from
-        # still in process of conversion
-        if type(msg) == str and msg.split()[0] == "!pin":
+        # *or* an int of messages to go forward/back from UPDATE: maybe don't do this
+        # was i tired when i wrote this???
+        if type(msg) == discord.Message:
+            msg = msg.content
+        if type(msg) == str and (msg.split()[0] == "!pin" or msg.split()[0] == "!quote"):
+            # chop off !pin if it exists
+            msg = " ".join(msg.split()[1:])
+        if type(msg) == str:
             try:
-                search = int(msg.split()[1])
+                search = int(msg.split()[0])
             except ValueError:
-                # chop off the !pin
-                search = " ".join(msg.split()[1:])
+                search = msg
         elif type(msg) == int:
             search = msg
+        else:
+            raise TypeError
         # this feels sinful
+        # y e a h i'm burning this
+        # haha nvm
         if type(search) == int:
             try:
-                message = await channel.get_message(msg)
+                message = await channel.get_message(search)
                 if not silent:
                     await channel.send(
-                        "MESSAGE FOUND: The message with ID {} and contents \"{}\" corresponds to the search string."
-                        .format(ptl_msg.id, ptl_msg.content))
+                        "MESSAGE FOUND: The message with ID {} and contents \"{}\" corresponds to the given ID."
+                        .format(message.id, message.content))
                 return message
             except discord.NotFound:
                 if not silent:
@@ -43,34 +51,30 @@ class Scribe(discord.Client):
                 return None
         else:
             # id msgs were handled above, so here we have a string that needs to be searched
-            ptl_msg = discord.utils.find(
-                    lambda m: m.content.startswith(search) and m.channel == channel,
-                    client.messages)
+            ptl_msg = await channel.history().find(
+                    lambda m: m.content.startswith(search) and m.channel == channel)
             if ptl_msg is None:
                 if not silent:
-                    await channel.send(,
-                            "INVALID SEARCH STRING: A message with the contents {} cannot be found in this channel."
+                    await channel.send("INVALID SEARCH STRING: A message with the contents {} cannot be found in this channel."
                             .format(search))
                 return None
             # we found a message
             if not silent:
-                await channel.send(,
+                await channel.send(
                         "MESSAGE FOUND: The message with ID {} and contents \"{}\" corresponds to the search string."
                         .format(ptl_msg.id, ptl_msg.content))
             return ptl_msg
 
-    async def prompt_for_pin(self, channel, pinner, prompt, check=None, check_fail=""):
+    async def prompt(self, channel, cmd, pinner, prompt, check=None, check_fail=""):
         await channel.send(prompt)
         while True:
-            request = await client.wait_for(
+            request = await self.wait_for(
                     'message',
-                    check=lambda m: m.author == pinner and m.channel == channel and (m.content.startswith("!pin") or m.content.startswith("!stop")))
+                    check=lambda m: m.author == pinner and m.channel == channel and (m.content.startswith(cmd) or m.content.startswith("!stop")))
             if request.content.startswith("!stop"):
                 await channel.send("Aborting pin attempt.")
                 return
-            elif request.content.startswith("!nocontext"):
-                await channel.send("Pinning message without context.")
-            msg = await find_message(request.content, channel)
+            msg = await self.find_message(request.content.split(' ', 1)[1], channel)
             if msg is None:
                 await channel.send("Please try !pinning again or abort the pin with !stop.")
                 continue
@@ -80,71 +84,78 @@ class Scribe(discord.Client):
                 continue
             return msg
 
+    async def pretty_print(self, m):
+        if m.edited_at is None:
+            return "[{}] {}#{}: {}\n".format(
+                    m.created_at.isoformat(timespec='seconds'),
+                    m.author.name,
+                    m.author.discriminator,
+                    m.content)
+        else:
+            return "[{} edited {}] {}#{}: {}\n".format(
+                    m.created_at.isoformat(timespec='seconds'),
+                    m.edited_at.isoformat(timespec='seconds'),
+                    m.author.name,
+                    m.author.discriminator,
+                    m.content)
+
     async def on_message(self, message):
         # main command for this bot is gonna be !pin
-        if message.content.startswith('!pin') and message.author != self.user and (message.author, message.channel) not in self.pinning:
-            self.pinning.append((message.author, message.channel))
-            pin_msg = await find_message(message.content, message.channel)
+        if (message.content.startswith('!pin') or message.content.startswith('!quote')) and message.author != self.user: 
+            #self.pinning.append((message.author, message.channel))
+            pin_msg = await self.find_message(message.content, message.channel)
             if pin_msg is None:
                 await message.channel.send("Aborting pin attempt.")
                 return
-            start_context = await prompt_for_pin(message.channel,
-                    message.author,
-                    "What message would you like to begin the pin context at?",
-                    lambda m: m.timestamp < pin_msg.timestamp,
-                    "This message was sent after the pinned message.")
-            end_context = await prompt_for_pin(message.channel,
-                    message.author,
-                    "What message would you like to end the pin context at?",
-                    lambda m: m.timestamp > pin_msg.timestamp,
-                    "This message was sent before the pinned message.")
-            # time to begin the message trawl of hell
-            # hey look 1.0 made this nice
+            is_quote = message.content.startswith('!quote')
+            if is_quote:
+                start_context = await self.prompt(message.channel,
+                        "!startcontext",
+                        message.author,
+                        "Use !startcontext to specify the message to start the pin context at.",
+                        lambda m: m.created_at < pin_msg.created_at,
+                        "This message was sent after the pinned message.")
+                end_context = await self.prompt(message.channel,
+                        "!endcontext",
+                        message.author,
+                        "Use !endcontext to specify the message to end the pin context at.",
+                        lambda m: m.created_at > pin_msg.created_at,
+                        "This message was sent before the pinned message.")
+                if start_context is None or end_context is None:
+                    return
             pin_string = ""
-            async for m in message.channel.history(limit=40, before=start_context, after=end_context):
-                # use datetime.isoformat()
-                if m.edited_timestamp is None:
-                    pin_string += "[{}] {}#{}: {}\n".format(
-                            m.timestamp.isoformat(timespec='seconds'),
-                            m.author.name,
-                            m.author.discriminator,
-                            m.content)
-                else:
-                    pin_string += "[{} edited {}] {}#{}: {}\n".format(
-                            m.timestamp.isoformat(timespec='seconds'),
-                            m.edited_timestamp.isoformat(timespec='seconds'),
-                            m.author.name,
-                            m.author.discriminator,
-                            m.content)
-            if m.guild == None:
-                filename = "scribe-pm-{}-{}".format(
-                        m.channel.id,
-                        time.time())
-                big_filename = "scribe-pm-{}".format(
-                        m.channel.id)
+            if is_quote:
+                async for m in message.channel.history(limit=40,
+                        before=end_context.created_at + datetime.timedelta(microseconds=50), 
+                        after=start_context.created_at - datetime.timedelta(microseconds=50)): 
+                    if m == pin_msg:
+                        pin_string += "==>"
+                    pin_string += await self.pretty_print(m)
             else:
-                filename = "scribe-{}-{}-{}".format(
-                        m.guild.name,
-                        m.channel.name,
-                        time.time())
-                big_filename = "scribe-{}-{}.".format(
-                        m.guild.name,
-                        m.channel.name)
-            if not os.path.isfile(filename):
-                filename += ".txt"
-                f = open(filename, 'w')
+                pin_string = await self.pretty_print(pin_msg)
+            if message.guild == None:
+                filename = "pins/individual/scribe-pm-{}-{}".format(
+                        message.channel.id,
+                        datetime.datetime.utcnow().isoformat(timespec='seconds'))
+                big_filename = "pins/aggregate/scribe-pm-{}.txt".format(
+                        message.channel.id)
             else:
-                filename += str(round(random.random() * 100000)) + ".txt"
-                f = open(filename, 'w')
-            if not os.path.isfile(big_filename):
-                big_filename += ".txt"
-                g = open(big_filename, 'w')
-            else:
-                g = open(big_filename, 'a')
-            f.write(pin_string)
-            f.close()
-            g.write("\n\n" + pin_string)
-            g.close()
+                filename = "pins/individual/scribe-{}-{}-{}".format(
+                        message.guild.name,
+                        message.channel.name,
+                        datetime.datetime.utcnow().isoformat(timespec='seconds'))
+                big_filename = "pins/aggregate/scribe-{}-{}.txt".format(
+                        message.guild.name,
+                        message.channel.name)
+            if os.path.isfile(filename):
+                filename += str(round(random.random() * 100000))
+            filename += ".txt"
+            with open(filename, 'a') as f:
+                f.write(pin_string)
+            with open(big_filename, 'a') as g:
+                g.write(pin_string + "\n\n")
+            await message.channel.send("Messages successfully pinned!")
+            #self.pinning.remove((message.author, message.channel))
 
 client = Scribe()
 client.run('NDEzMDgyODg0OTEyNTc4NTYw.DWTo9Q.ZW29xMylWrV5uS1qKgHPqlcVQGM')

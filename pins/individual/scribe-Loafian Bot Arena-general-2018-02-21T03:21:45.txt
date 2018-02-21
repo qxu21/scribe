@@ -1,0 +1,30 @@
+[2018-02-21T01:43:57] Loaf#3599: hells yes
+[2018-02-21T01:44:03] Loaf#3599: it workèd
+[2018-02-21T01:45:09] Loaf#3599: !pin so close
+[2018-02-21T01:45:10] Scribe#2964: MESSAGE FOUND: The message with ID 415684856215764995 and contents "so close" corresponds to the search string.
+[2018-02-21T01:45:10] Scribe#2964: Messages successfully pinned!
+[2018-02-21T01:45:17] Loaf#3599: !pin 415685067604492290
+[2018-02-21T01:45:17] Scribe#2964: MESSAGE FOUND: The message with ID 415685067604492290 and contents "it workèd" corresponds to the given ID.
+[2018-02-21T01:45:17] Scribe#2964: Messages successfully pinned!
+[2018-02-21T01:45:41] Loaf#3599: okay
+[2018-02-21T03:17:06] Loaf#3599: !quote it workèd
+[2018-02-21T03:17:07] Scribe#2964: MESSAGE FOUND: The message with ID 415708485888507904 and contents "!quote it workèd" corresponds to the search string.
+[2018-02-21T03:17:55] Loaf#3599: !quote it workèd
+[2018-02-21T03:17:56] Scribe#2964: MESSAGE FOUND: The message with ID 415708693183594496 and contents "!quote it workèd" corresponds to the search string.
+[2018-02-21T03:17:56] Scribe#2964: Use !startcontext to specify the message to start the pin context at.
+[2018-02-21T03:18:03] Loaf#3599: !startcontext okay
+[2018-02-21T03:18:03] Scribe#2964: MESSAGE FOUND: The message with ID 415708723105890305 and contents "!startcontext okay" corresponds to the search string.
+[2018-02-21T03:18:03] Scribe#2964: MESSAGE INVALID: This message was sent after the pinned message. Please try !pinning again or abort the pin with !stop.
+[2018-02-21T03:20:32] Loaf#3599: !quote it workèd
+[2018-02-21T03:20:32] Scribe#2964: MESSAGE FOUND: The message with ID 415709350447808514 and contents "!quote it workèd" corresponds to the search string.
+[2018-02-21T03:20:32] Scribe#2964: Use !startcontext to specify the message to start the pin context at.
+[2018-02-21T03:20:43] Loaf#3599: !startcontext hells yes
+[2018-02-21T03:20:44] Scribe#2964: MESSAGE FOUND: The message with ID 415685045739847681 and contents "hells yes" corresponds to the search string.
+[2018-02-21T03:20:44] Scribe#2964: Use !startcontext to specify the message to start the pin context at.
+[2018-02-21T03:20:57] Loaf#3599: !startcontext !pin so close
+[2018-02-21T03:21:07] Loaf#3599: !endcontext !pin so close
+[2018-02-21T03:21:07] Scribe#2964: MESSAGE FOUND: The message with ID 415684856215764995 and contents "so close" corresponds to the search string.
+[2018-02-21T03:21:07] Scribe#2964: MESSAGE INVALID: This message was sent before the pinned message. Please try !pinning again or abort the pin with !stop.
+[2018-02-21T03:21:31] Loaf#3599: !endcontext !quote it workéd
+[2018-02-21T03:21:31] Scribe#2964: INVALID SEARCH STRING: A message with the contents !quote it workéd cannot be found in this channel.
+[2018-02-21T03:21:31] Scribe#2964: Please try !pinning again or abort the pin with !stop.
