@@ -9,6 +9,7 @@ import os.path
 import sys
 
 # TODO:
+# 1. Save pins in folders by server id
 # 2. reactions
 # 3. if scribetest is in there don't talk
 
@@ -86,7 +87,7 @@ class Scribe(discord.Client):
                 continue
             return msg
 
-    async def pretty_print(self, m):
+    def pretty_print(self, m):
         if m.edited_at is None:
             return "[{}] {}#{}: {}\n".format(
                     m.created_at.replace(microsecond=0).isoformat(),
@@ -127,12 +128,12 @@ class Scribe(discord.Client):
                     return
             pin_string = ""
             if is_quote:
-                async for m in message.channel.history(limit=40,
-                        before=end_context.created_at + datetime.timedelta(microseconds=50), 
-                        after=start_context.created_at - datetime.timedelta(microseconds=50)): 
-                    if m == pin_msg:
+                async for m in message.channel.history(limit=60,
+                        before=end_context.created_at + datetime.timedelta(microseconds=1000), 
+                        after=start_context.created_at - datetime.timedelta(microseconds=1000)): 
+                    if m.id ==  pin_msg.id:
                         pin_string += "==>"
-                    pin_string += await self.pretty_print(m)
+                    pin_string += self.pretty_print(m)
             else:
                 pin_string = await self.pretty_print(pin_msg)
             if message.guild == None:
