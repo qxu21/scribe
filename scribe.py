@@ -135,7 +135,7 @@ class Scribe(discord.Client):
                         pin_string += "==>"
                     pin_string += self.pretty_print(m)
             else:
-                pin_string = await self.pretty_print(pin_msg)
+                pin_string = self.pretty_print(pin_msg)
             if message.guild == None:
                 filename = "pins/individual/scribe-pm-{}-{}".format(
                         message.channel.id,
