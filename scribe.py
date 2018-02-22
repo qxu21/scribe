@@ -6,9 +6,11 @@ import types
 import random
 import os
 import os.path
+import sys
 
 # TODO:
 # 2. reactions
+# 3. if scribetest is in there don't talk
 
 # MAYBEDO:
 # create its own directories
@@ -87,14 +89,14 @@ class Scribe(discord.Client):
     async def pretty_print(self, m):
         if m.edited_at is None:
             return "[{}] {}#{}: {}\n".format(
-                    m.created_at.isoformat(timespec='seconds'),
+                    m.created_at.replace(microsecond=0).isoformat(),
                     m.author.name,
                     m.author.discriminator,
                     m.content)
         else:
             return "[{} edited {}] {}#{}: {}\n".format(
-                    m.created_at.isoformat(timespec='seconds'),
-                    m.edited_at.isoformat(timespec='seconds'),
+                    m.created_at.replace(microsecond=0).isoformat(),
+                    m.edited_at.replace(microsecond=0).isoformat(),
                     m.author.name,
                     m.author.discriminator,
                     m.content)
@@ -136,14 +138,14 @@ class Scribe(discord.Client):
             if message.guild == None:
                 filename = "pins/individual/scribe-pm-{}-{}".format(
                         message.channel.id,
-                        datetime.datetime.utcnow().isoformat(timespec='seconds'))
+                        datetime.datetime.utcnow().replace(microsecond=0).isoformat())
                 big_filename = "pins/aggregate/scribe-pm-{}.txt".format(
                         message.channel.id)
             else:
                 filename = "pins/individual/scribe-{}-{}-{}".format(
                         message.guild.name,
                         message.channel.name,
-                        datetime.datetime.utcnow().isoformat(timespec='seconds'))
+                        datetime.datetime.utcnow().replace(microsecond=0).isoformat())
                 big_filename = "pins/aggregate/scribe-{}-{}.txt".format(
                         message.guild.name,
                         message.channel.name)
@@ -156,6 +158,15 @@ class Scribe(discord.Client):
                 g.write(pin_string + "\n\n")
             await message.channel.send("Messages successfully pinned!")
             #self.pinning.remove((message.author, message.channel))
+        elif message.content.startswith("!scribehelp") or message.content.startswith("!pinhelp"):
+            await message.channel.send(
+            "Use `!pin <first few words of message>` or `!pin <message id>` to pin a single message.\n\n" \
+            "Use `!quote <first few words of message>` or `!quote <message id>` to pin a message as well as context messages around it.\n\n" \
+            "Use `!startcontext` and `!endcontext` to specify the messages to start and end the pin context at.\n\n" \
+            "Use `!scribehelp` or `!pinhelp` to display this help message.")
 
 client = Scribe()
-client.run('NDEzMDgyODg0OTEyNTc4NTYw.DWTo9Q.ZW29xMylWrV5uS1qKgHPqlcVQGM')
+if sys.argv[1] in ("dev", "test"):
+    client.run('NDE2MDUxMjQ2Nzc2OTc1MzYx.DW-1cw.Mu2snuR0kfsCnezGPcA4BoLiB7c')
+elif sys.argv[1] in ("prod", "production"):
+    client.run('NDEzMDgyODg0OTEyNTc4NTYw.DWTo9Q.ZW29xMylWrV5uS1qKgHPqlcVQGM')
