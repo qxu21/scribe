@@ -12,12 +12,18 @@ import sys
 # 1. Save pins in folders by server id
 # 2. reactions
 # 3. if scribetest is in there don't talk
+# 4. pincaps
+# 5. send pin file
+# 6. rework to do ids
+# 7. pin actual pins
 
 # MAYBEDO:
 # create its own directories
 
 class Scribe(discord.Client):
     #pinning = []
+
+    
 
     async def find_message(self, msg, channel, count=0, silent=False, raw_string=False):
         # msg is either a string to search for *or* a message id *or* a list of words
@@ -45,7 +51,7 @@ class Scribe(discord.Client):
                 message = await channel.get_message(search)
                 if not silent:
                     await channel.send(
-                        "MESSAGE FOUND: The message with ID {} and contents \"{}\" corresponds to the given ID."
+                        "MESSAGE FOUND: The message \"{}\" corresponds to the given ID."
                         .format(message.id, message.content))
                 return message
             except discord.NotFound:
@@ -64,7 +70,7 @@ class Scribe(discord.Client):
             # we found a message
             if not silent:
                 await channel.send(
-                        "MESSAGE FOUND: The message with ID {} and contents \"{}\" corresponds to the search string."
+                        "MESSAGE FOUND: The message \"{}\" corresponds to the search string."
                         .format(ptl_msg.id, ptl_msg.content))
             return ptl_msg
 
@@ -104,7 +110,7 @@ class Scribe(discord.Client):
 
     async def on_message(self, message):
         # main command for this bot is gonna be !pin
-        if (message.content.startswith('!pin') or message.content.startswith('!quote')) and message.author != self.user: 
+        if (message.content.startswith('!pin ') or message.content.startswith('!quote')) and message.author != self.user: 
             #self.pinning.append((message.author, message.channel))
             pin_msg = await self.find_message(message.content, message.channel)
             if pin_msg is None:
@@ -126,6 +132,7 @@ class Scribe(discord.Client):
                         "This message was sent before the pinned message.")
                 if start_context is None or end_context is None:
                     return
+            # this pin code will have to be migrated to a function
             pin_string = ""
             if is_quote:
                 async for m in message.channel.history(limit=60,
@@ -136,29 +143,36 @@ class Scribe(discord.Client):
                     pin_string += self.pretty_print(m)
             else:
                 pin_string = self.pretty_print(pin_msg)
-            if message.guild == None:
-                filename = "pins/individual/scribe-pm-{}-{}".format(
-                        message.channel.id,
-                        datetime.datetime.utcnow().replace(microsecond=0).isoformat())
-                big_filename = "pins/aggregate/scribe-pm-{}.txt".format(
-                        message.channel.id)
-            else:
-                filename = "pins/individual/scribe-{}-{}-{}".format(
-                        message.guild.name,
-                        message.channel.name,
-                        datetime.datetime.utcnow().replace(microsecond=0).isoformat())
-                big_filename = "pins/aggregate/scribe-{}-{}.txt".format(
-                        message.guild.name,
-                        message.channel.name)
-            if os.path.isfile(filename):
-                filename += str(round(random.random() * 100000))
-            filename += ".txt"
-            with open(filename, 'a') as f:
-                f.write(pin_string)
-            with open(big_filename, 'a') as g:
-                g.write(pin_string + "\n\n")
+            #if message.guild == None:
+            #    filename = "pins/pms/{}.txt".format(
+            #            message.channel.id)
+            #else:
+            dn = "pins/{}".format(message.guild.id)
+            fn = "{}.txt".format(message.channel.id)
+            if not os.path.isdir(dn):
+                os.makedirs(dn)
+            with open(os.path.join(dn,fn), 'a') as f:
+                f.write(pin_string + "\n\n")
             await message.channel.send("Messages successfully pinned!")
-            #self.pinning.remove((message.author, message.channel))
+            #self.pinning.remove((message.author, message.channel)) 
+        elif message.content.startswith("!pinfile"):
+            #if message.guild == None:
+            #    fn = "pins/pms/{}.txt".format(
+            #            message.channel.id)
+            #else:
+            dn = "pins/{}".format(message.guild.id)
+            fn = "{}.txt".format(message.channel.id)
+            filename = "scribe-{}-{}-{}.txt".format(
+                    message.guild.name,
+                    message.channel.name,
+                    datetime.datetime.utcnow().replace(microsecond=0).isoformat())
+            if not os.path.isdir(dn) or not os.path.isfile(os.path.join(dn, fn)):
+                await message.channel.send("No pins have been recorded for this channel!")
+                return
+            await message.channel.send(
+                    file=discord.File(
+                        fp=os.path.join(dn, fn),
+                        filename=filename))
         elif message.content.startswith("!scribehelp") or message.content.startswith("!pinhelp"):
             await message.channel.send(
             "Use `!pin <first few words of message>` or `!pin <message id>` to pin a single message.\n\n" \
