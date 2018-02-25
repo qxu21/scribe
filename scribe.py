@@ -160,11 +160,18 @@ class Scribe(discord.Client):
             #    fn = "pins/pms/{}.txt".format(
             #            message.channel.id)
             #else:
+            if len(message.channel_mentions) == 1:
+                cn = message.channel_mentions[0]
+            elif len(message.channel_mentions) > 1:
+                await message.channel.send("You can only ask for one channel!")
+                return
+            else:
+                cn = message.channel
             dn = "pins/{}".format(message.guild.id)
-            fn = "{}.txt".format(message.channel.id)
+            fn = "{}.txt".format(cn.id)
             filename = "scribe-{}-{}-{}.txt".format(
                     message.guild.name,
-                    message.channel.name,
+                    cn.name,
                     datetime.datetime.utcnow().replace(microsecond=0).isoformat())
             if not os.path.isdir(dn) or not os.path.isfile(os.path.join(dn, fn)):
                 await message.channel.send("No pins have been recorded for this channel!")
