@@ -9,21 +9,15 @@ import os.path
 import sys
 
 # TODO:
-# 1. Save pins in folders by server id
 # 2. reactions
 # 3. if scribetest is in there don't talk
 # 4. pincaps
-# 5. send pin file
-# 6. rework to do ids
 # 7. pin actual pins
 
 # MAYBEDO:
 # create its own directories
 
 class Scribe(discord.Client):
-    #pinning = []
-
-    
 
     async def find_message(self, msg, channel, count=0, silent=False, raw_string=False):
         # msg is either a string to search for *or* a message id *or* a list of words
@@ -108,6 +102,48 @@ class Scribe(discord.Client):
                     m.author.discriminator,
                     m.content)
 
+    def pin_message(self, message):
+        if type(message) == discord.Message:
+            self.pin_text(self.pretty_print(message))
+        elif type(message) == list:
+            for m in message:
+                self.pin_text(self.pretty_print(m)) # errors probably aaa rushhhhh
+
+    def pin_text(self, channel, text):
+        # OPTIMIZATION POTENTIAL: make this async
+        # still does not support dms - channel must be GuildChannel
+        # if multiple messages need ot be pinned, pass a list, since the file is opened for each call
+        dn = "pins/{}".format(channel.guild.id)
+        fn = "{}.txt".format(channel.id)
+        if not os.path.isdir(dn):
+            os.makedirs(dn)
+        with open(os.path.join(dn,fn), 'a') as f:
+            if type(text) == str:
+                f.write(text + "\n\n")
+            elif type(text) == list:
+                for l in text:
+                    f.write(l + "\n\n")
+
+    async def on_guild_join(self, guild):
+        for channel in guild.text_channels:
+            pinlist = []
+            pin_ids = []
+            pins = await channel.pins()
+            for pin in pins:
+                pinlist.append(self.pretty_print(pin))
+                pin_ids.append(pin.id)
+            self.pin_message(channel, pinlist)
+            # push pickled pin_ids to database
+
+    async def on_guild_channel_pins_update(self, channel, last_pin_time):
+        # unpickle pins from database
+        current_pins = await channel.pins()
+        if len(previous_pins) > len(current_pins):
+            # currently no unpinning functionality
+            return
+        # obtain the odd pin out - how?
+        # self.pin_message() odd pin - maybe add self.
+
     async def on_message(self, message):
         # main command for this bot is gonna be !pin
         if (message.content.startswith('!pin ') or message.content.startswith('!quote')) and message.author != self.user: 
@@ -143,18 +179,8 @@ class Scribe(discord.Client):
                     pin_string += self.pretty_print(m)
             else:
                 pin_string = self.pretty_print(pin_msg)
-            #if message.guild == None:
-            #    filename = "pins/pms/{}.txt".format(
-            #            message.channel.id)
-            #else:
-            dn = "pins/{}".format(message.guild.id)
-            fn = "{}.txt".format(message.channel.id)
-            if not os.path.isdir(dn):
-                os.makedirs(dn)
-            with open(os.path.join(dn,fn), 'a') as f:
-                f.write(pin_string + "\n\n")
+            self.pin_message(message.channel, pin_string)
             await message.channel.send("Messages successfully pinned!")
-            #self.pinning.remove((message.author, message.channel)) 
         elif message.content.startswith("!pinfile"):
             #if message.guild == None:
             #    fn = "pins/pms/{}.txt".format(
