@@ -46,7 +46,7 @@ class Scribe(discord.Client):
                 if not silent:
                     await channel.send(
                         "MESSAGE FOUND: The message \"{}\" corresponds to the given ID."
-                        .format(message.id, message.content))
+                        .format(message.content))
                 return message
             except discord.NotFound:
                 if not silent:
@@ -65,7 +65,7 @@ class Scribe(discord.Client):
             if not silent:
                 await channel.send(
                         "MESSAGE FOUND: The message \"{}\" corresponds to the search string."
-                        .format(ptl_msg.id, ptl_msg.content))
+                        .format(ptl_msg.content))
             return ptl_msg
 
     async def prompt(self, channel, cmd, pinner, prompt, check=None, check_fail=""):
