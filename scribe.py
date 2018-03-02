@@ -185,8 +185,11 @@ class Scribe(discord.Client):
             "Use `!pin <first few words of message>` or `!pin <message id>` to pin a single message.\n\n" \
             "Use `!quote <first few words of message>` or `!quote <message id>` to pin a message as well as context messages around it.\n\n" \
             "Use `!startcontext` and `!endcontext` to specify the messages to start and end the pin context at.\n\n" \
-            "Use `!pinfile` to grab the current channel's pin file.\n\n" \
-            "Use `!scribehelp` or `!pinhelp` to display this help message.")
+            "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
+            "Use `!scribehelp` or `!pinhelp` to display this help message.\n\n" \
+            "Use `!invite` to obtain an invite for Scribe.")
+        elif message.content.startswith("!invite"):
+            await message.channel.send("Invite Scribe to your server! https://discordapp.com/api/oauth2/authorize?client_id=413082884912578560&permissions=0&scope=bot")
 
 client = Scribe()
 if sys.argv[1] in ("dev", "test"):
