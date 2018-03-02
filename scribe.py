@@ -110,6 +110,9 @@ class Scribe(discord.Client):
 
     async def on_message(self, message):
         # main command for this bot is gonna be !pin
+        if message.channel.permissions_for(message.guild.me).send_messages == False:
+            # no send, no pin
+            return
         if (message.content.startswith('!pin ') or message.content.startswith('!quote')) and message.author != self.user: 
             #self.pinning.append((message.author, message.channel))
             pin_msg = await self.find_message(message.content, message.channel)
