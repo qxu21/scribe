@@ -13,6 +13,8 @@ import sys
 # 3. if scribetest is in there don't talk
 # 4. pincaps
 # 7. pin actual pins
+# remove spam
+# make stop slice through
 
 # MAYBEDO:
 # create its own directories
@@ -23,11 +25,14 @@ class Scribe(discord.Client):
         # msg is either a string to search for *or* a message id *or* a list of words
         # *or* an int of messages to go forward/back from UPDATE: maybe don't do this
         # was i tired when i wrote this???
-        if type(msg) == discord.Message:
-            msg = msg.content
-        if type(msg) == str and (msg.split()[0] == "!pin" or msg.split()[0] == "!quote"):
+        
+        #what is below
+        #if type(msg) == discord.Message:
+        #    msg = msg.content
+
+        if type(msg) == str and (msg.split(" ")[0] == "!pin" or msg.split(" ")[0] == "!quote"):
             # chop off !pin if it exists
-            msg = " ".join(msg.split()[1:])
+            msg = msg.split(" ", 1)[1]
         if type(msg) == str:
             try:
                 search = int(msg.split()[0])
@@ -43,29 +48,19 @@ class Scribe(discord.Client):
         if type(search) == int:
             try:
                 message = await channel.get_message(search)
-                if not silent:
-                    await channel.send(
-                        "MESSAGE FOUND: The message \"{}\" corresponds to the given ID."
-                        .format(message.content))
                 return message
             except discord.NotFound:
-                if not silent:
-                    await channel.send("INVALID MESSAGE ID: Message ID not found in this channel.")
                 return None
         else:
             # id msgs were handled above, so here we have a string that needs to be searched
+            print(search)
             ptl_msg = await channel.history().find(
                     lambda m: m.content.startswith(search) and m.channel == channel)
-            if ptl_msg is None:
-                if not silent:
-                    await channel.send("INVALID SEARCH STRING: A message with the contents {} cannot be found in this channel."
-                            .format(search))
-                return None
+            #???
+            #if ptl_msg is None:
+            #    return None
+
             # we found a message
-            if not silent:
-                await channel.send(
-                        "MESSAGE FOUND: The message \"{}\" corresponds to the search string."
-                        .format(ptl_msg.content))
             return ptl_msg
 
     async def prompt(self, channel, cmd, pinner, prompt, check=None, check_fail=""):
@@ -104,10 +99,10 @@ class Scribe(discord.Client):
 
     def pin_message(self, message):
         if type(message) == discord.Message:
-            self.pin_text(self.pretty_print(message))
+            self.pin_text(message.channel, self.pretty_print(message))
         elif type(message) == list:
             for m in message:
-                self.pin_text(self.pretty_print(m)) # errors probably aaa rushhhhh
+                self.pin_text(message.channel, self.pretty_print(m)) # errors probably aaa rushhhhh
 
     def pin_text(self, channel, text):
         # OPTIMIZATION POTENTIAL: make this async
@@ -124,7 +119,7 @@ class Scribe(discord.Client):
                 for l in text:
                     f.write(l + "\n\n")
 
-    async def on_guild_join(self, guild):
+    """async def on_guild_join(self, guild):
         for channel in guild.text_channels:
             pinlist = []
             pin_ids = []
@@ -143,6 +138,16 @@ class Scribe(discord.Client):
             return
         # obtain the odd pin out - how?
         # self.pin_message() odd pin - maybe add self.
+        """
+
+    def format_for_feedback(self, string):
+        # if i had figured out to chain replace calls earlier
+        string = string.replace('`','').replace('\n', ' ')
+        string = string.strip()
+        if len(string) < 20:
+            return string
+        else:
+            return string[:20] + "..."
 
     async def on_message(self, message):
         # main command for this bot is gonna be !pin
@@ -150,45 +155,54 @@ class Scribe(discord.Client):
             # no send, no pin
             return
         if (message.content.startswith('!pin ') or message.content.startswith('!quote')) and message.author != self.user: 
-            #self.pinning.append((message.author, message.channel))
-            pin_msg = await self.find_message(message.content, message.channel)
-            if pin_msg is None:
-                await message.channel.send("Aborting pin attempt.")
-                return
             is_quote = message.content.startswith('!quote')
-            if is_quote:
-                start_context = await self.prompt(message.channel,
-                        "!startcontext",
-                        message.author,
-                        "Use !startcontext to specify the message to start the pin context at.",
-                        lambda m: m.created_at < pin_msg.created_at,
-                        "This message was sent after the pinned message.")
-                end_context = await self.prompt(message.channel,
-                        "!endcontext",
-                        message.author,
-                        "Use !endcontext to specify the message to end the pin context at.",
-                        lambda m: m.created_at > pin_msg.created_at,
-                        "This message was sent before the pinned message.")
-                if start_context is None or end_context is None:
+            if not is_quote:
+                pin_msg = await self.find_message(message.content, message.channel)
+                if pin_msg is None:
+                    await message.channel.send("Message not found.")
                     return
+            else:
+                spl = message.content.split("\n")
+                if len(spl) != 3:
+                    await message.channel.send((
+                            "Please quote in the format:\n"
+                            "`!quote\n"
+                            "<start message search string>\n"
+                            "<end message search string>`"))
+                    return
+                start_context = await self.find_message(spl[1], message.channel)
+                if start_context is None:
+                    await message.channel.send("Start message not found.")
+                    return
+                end_context = await self.find_message(spl[2], message.channel)
+                if end_context is None:
+                    await message.channel.send("End message not found.")
+                    return
+                if end_context.created_at < start_context.created_at:
+                    # TOASK: abort or silently swap?
+                    tmp = end_context
+                    end_context = start_context
+                    start_context = tmp
             # this pin code will have to be migrated to a function
             pin_string = ""
             if is_quote:
                 async for m in message.channel.history(limit=60,
                         before=end_context.created_at + datetime.timedelta(microseconds=1000), 
                         after=start_context.created_at - datetime.timedelta(microseconds=1000)): 
-                    if m.id ==  pin_msg.id:
-                        pin_string += "==>"
                     pin_string += self.pretty_print(m)
             else:
                 pin_string = self.pretty_print(pin_msg)
-            self.pin_message(message.channel, pin_string)
-            await message.channel.send("Messages successfully pinned!")
+            self.pin_text(message.channel, pin_string)
+            if is_quote:
+                await message.channel.send(
+                        "The quote starting with `{}` and ending with `{}` has been pinned.".format(
+                            self.format_for_feedback(start_context.content),
+                            self.format_for_feedback(end_context.content)))
+            else:
+                await message.channel.send(
+                        "The message starting with `{}` has been pinned.".format(
+                            self.format_for_feedback(pin_msg.content)))
         elif message.content.startswith("!pinfile"):
-            #if message.guild == None:
-            #    fn = "pins/pms/{}.txt".format(
-            #            message.channel.id)
-            #else:
             if len(message.channel_mentions) == 1:
                 cn = message.channel_mentions[0]
             elif len(message.channel_mentions) > 1:
@@ -211,9 +225,9 @@ class Scribe(discord.Client):
                         filename=filename))
         elif message.content.startswith("!scribehelp") or message.content.startswith("!pinhelp"):
             await message.channel.send(
-            "Use `!pin <first few words of message>` or `!pin <message id>` to pin a single message.\n\n" \
-            "Use `!quote <first few words of message>` or `!quote <message id>` to pin a message as well as context messages around it.\n\n" \
-            "Use `!startcontext` and `!endcontext` to specify the messages to start and end the pin context at.\n\n" \
+            "Use `!pin <first few words of message>` to pin a single message.\n\n" \
+            "`!quote\n<first few words of start message>\n<first few words of end message>`\npins a message block.\n\n" \
+            "The bot also accepts message IDs if you know how to find them.\n\n" \
             "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
             "Use `!scribehelp` or `!pinhelp` to display this help message.\n\n" \
             "Use `!invite` to obtain an invite for Scribe.")
