@@ -53,9 +53,8 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False):
             return None
     else:
         # id msgs were handled above, so here we have a string that needs to be searched
-        print(search)
         ptl_msg = await channel.history().find(
-                lambda m: m.content.startswith(search) and m.channel == channel)
+                lambda m: (m.content.startswith(search) or m.clean_content.startswith(search)) and m.channel == channel)
         #???
         #if ptl_msg is None:
         #    return None
@@ -64,19 +63,25 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False):
         return ptl_msg
 
 def pretty_print(m):
+    s = ""
     if m.edited_at is None:
-        return "[{}] {}#{}: {}\n".format(
+        s += "[{}] {}#{}: {}\n".format(
                 m.created_at.replace(microsecond=0).isoformat(),
                 m.author.name,
                 m.author.discriminator,
-                m.content)
+                m.clean_content)
     else:
-        return "[{} edited {}] {}#{}: {}\n".format(
+        s += "[{} edited {}] {}#{}: {}\n".format(
                 m.created_at.replace(microsecond=0).isoformat(),
                 m.edited_at.replace(microsecond=0).isoformat(),
                 m.author.name,
                 m.author.discriminator,
-                m.content)
+                m.clean_content)
+    if m.attachments != []:
+        for a in m.attachments:
+            s += "ATTACHMENT: {}\n".format(a.url)
+    return s
+
 
 def pin_message(message):
     if type(message) == discord.Message:
@@ -137,7 +142,7 @@ def format_for_feedback(string):
 
 @scribe.command()
 async def pin(ctx, *, msg):
-    pin_msg = await find_message(ctx.message.content, ctx.channel)
+    pin_msg = await find_message(msg, ctx.channel)
     if pin_msg is None:
         await ctx.send("Message not found.")
         return
@@ -145,12 +150,12 @@ async def pin(ctx, *, msg):
     pin_string = pretty_print(pin_msg)
     pin_text(ctx.channel, pin_string)
     await ctx.send(
-            "The message starting with `{}` has been pinned.".format(
+            "The message `{}` has been pinned.".format(
                 format_for_feedback(pin_msg.content)))
+
 @scribe.command()
 async def quote(ctx, *, msg):
     spl = msg.split("\n")
-    print(spl)
     if len(spl) != 2:
         await ctx.send((
                 "Please quote in the format:\n"
@@ -179,8 +184,8 @@ async def quote(ctx, *, msg):
     pin_text(ctx.channel, pin_string)
     await ctx.send(
             "The quote starting with `{}` and ending with `{}` has been pinned.".format(
-                format_for_feedback(start_context.content),
-                format_for_feedback(end_context.content)))
+                format_for_feedback(start_context.clean_content),
+                format_for_feedback(end_context.clean_content)))
 
 @scribe.command()
 async def pinfile(ctx, channel: discord.TextChannel = None):
