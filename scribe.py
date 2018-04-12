@@ -8,21 +8,22 @@ import random
 import os
 import os.path
 import sys
+import re
 
 # TODO:
-# 2. reactions
-# 3. if scribetest is in there don't talk
+# 2. reactions?
 # 4. pincaps
 # 7. pin actual pins
 # allow a command to rollback most recent pin
-# remove "starting with" from success msg
 # tell to use devmode
 # allow messages that start with mentions
+# add !pun
 
 # MAYBEDO:
 # create its own directories
 
 scribe = commands.Bot(command_prefix='!')
+scribe.remove_command("help")
 
 async def find_message(msg, channel, count=0, silent=False, raw_string=False):
     # msg is either a string to search for *or* a message id *or* a list of words
@@ -94,16 +95,18 @@ def pin_text(channel, text):
     # OPTIMIZATION POTENTIAL: make this async
     # still does not support dms - channel must be GuildChannel
     # if multiple messages need ot be pinned, pass a list, since the file is opened for each call
+    # sanitize text with regex
+    text = re.sub(r"\n{3,}", "\n\n", text)
     dn = "pins/{}".format(channel.guild.id)
     fn = "{}.txt".format(channel.id)
     if not os.path.isdir(dn):
         os.makedirs(dn)
     with open(os.path.join(dn,fn), 'a') as f:
         if type(text) == str:
-            f.write(text + "\n\n")
+            f.write(text + "\n\n\n")
         elif type(text) == list:
             for l in text:
-                f.write(l + "\n\n")
+                f.write(l + "\n\n\n")
 
 """async def on_guild_join(guild):
     for channel in guild.text_channels:
@@ -187,6 +190,15 @@ async def quote(ctx, *, msg):
                 format_for_feedback(start_context.clean_content),
                 format_for_feedback(end_context.clean_content)))
 
+#@scribe.command()
+#async def unpin(ctx):
+#    dn = "pins/{}".format(ctx.guild.id)
+#    fn = "{}.txt".format(ctx.channel.id)
+#    if not os.path.isdir(dn) or not os.path.isfile(os.path.join(dn, fn)):
+#        await ctx.send("No pins have been recorded for this channel!")
+#        return
+    # how to get last message without breaking sanitization
+
 @scribe.command()
 async def pinfile(ctx, channel: discord.TextChannel = None):
     #if len(ctx.message.channel_mentions) == 1:
@@ -220,15 +232,14 @@ async def pinfile_error(ctx, error):
         raise error
 
 
-
 @scribe.command()
-async def scribehelp(ctx):
+async def help(ctx):
     await ctx.send(
         "Use `!pin <first few words of message>` to pin a single message.\n\n" \
         "`!quote\n<first few words of start message>\n<first few words of end message>`\npins a message block.\n\n" \
         "The bot also accepts message IDs if you know how to find them.\n\n" \
         "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
-        "Use `!scribehelp` or `!pinhelp` to display this help message.\n\n" \
+        "Use `!help` to display this help message.\n\n" \
         "Use `!invite` to obtain an invite for Scribe.")
 
 @scribe.command()
