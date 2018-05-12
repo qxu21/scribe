@@ -271,9 +271,12 @@ async def help(ctx):
         "Use `!pin <first few words of message>` to pin a single message.\n\n" \
         "`!quote\n<first few words of start message>\n<first few words of end message>`\npins a message block.\n\n" \
         "The bot also accepts message IDs if you know how to find them.\n\n" \
+        "The bot also accepts message IDs. You can copy any message's ID by turning on Developer Mode in the Appearance menu of Discord settings. This seems to be the only thing Developer Mode does.\n\n" \
         "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
         "Use `!help` to display this help message.\n\n" \
-        "Use `!invite` to obtain an invite for Scribe.")
+        "Use `!invite` to obtain an invite for Scribe.\n\n" \
+        "Additional support can be obtained at https://discord.gg/Tk6G9Gr")
+
 
 @commands.command()
 async def invite(ctx):
