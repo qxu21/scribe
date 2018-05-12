@@ -1,5 +1,7 @@
 import discord
 from discord.ext import commands
+import asyncpg
+import config
 import datetime
 import time
 import asyncio
@@ -22,8 +24,36 @@ import re
 # MAYBEDO:
 # create its own directories
 
+#CURRENTLY: reading asyncpg example, considering messing with inheritance
+
 scribe = commands.Bot(command_prefix='!')
-scribe.remove_command("help")
+
+class Scribe(commands.Bot):
+    #subclassing Bot so i can store my own properites
+    #ripped from altarrel
+    def __init__(self, **kwargs):
+        super().__init__(
+            command_prefix="!"
+        )
+        self.db = kwargs.pop("db")
+        self.remove_command("help")
+        self.add_command(pin)
+        self.add_command(quote)
+        self.add_command(help)
+        self.add_command(pinfile)
+        self.add_command(invite)
+
+async def run(token, credentials):
+    db = await asyncpg.create_pool(**credentials)
+
+    await db.execute("CREATE TABLE IF NOT EXISTS channels(id bigint PRIMARY KEY, userid bigint);")
+
+    scribe = Scribe(db=db)
+    try:
+        await scribe.start(token)
+    except KeyboardInterrupt:
+        await db.close()
+        await scribe.logout()
 
 async def find_message(msg, channel, count=0, silent=False, raw_string=False):
     # msg is either a string to search for *or* a message id *or* a list of words
@@ -143,7 +173,7 @@ def format_for_feedback(string):
         # no send, no pin
         return
 
-@scribe.command()
+@commands.command()
 async def pin(ctx, *, msg):
     pin_msg = await find_message(msg, ctx.channel)
     if pin_msg is None:
@@ -156,7 +186,7 @@ async def pin(ctx, *, msg):
             "The message `{}` has been pinned.".format(
                 format_for_feedback(pin_msg.content)))
 
-@scribe.command()
+@commands.command()
 async def quote(ctx, *, msg):
     spl = msg.split("\n")
     if len(spl) != 2:
@@ -190,16 +220,19 @@ async def quote(ctx, *, msg):
                 format_for_feedback(start_context.clean_content),
                 format_for_feedback(end_context.clean_content)))
 
-#@scribe.command()
-#async def unpin(ctx):
-#    dn = "pins/{}".format(ctx.guild.id)
-#    fn = "{}.txt".format(ctx.channel.id)
-#    if not os.path.isdir(dn) or not os.path.isfile(os.path.join(dn, fn)):
-#        await ctx.send("No pins have been recorded for this channel!")
-#        return
-    # how to get last message without breaking sanitization
+@commands.command
+async def unpin(ctx):
+    # pin format:
+    #[2018-02-23T02:28:23] SpockMan02#4611: Coolio
+    #012345678901234567890123456789012345678901234567890
+    dn = "pins/{}".format(ctx.guild.id)
+    fn = "{}.txt".format(ctx.channel.id)
+    if not os.path.isdir(dn) or not os.path.isfile(os.path.join(dn, fn)):
+        await ctx.send("No pins have been recorded for this channel")
+        return
 
-@scribe.command()
+
+@commands.command()
 async def pinfile(ctx, channel: discord.TextChannel = None):
     #if len(ctx.message.channel_mentions) == 1:
     #    cn = ctx.message.channel_mentions[0]
@@ -232,7 +265,7 @@ async def pinfile_error(ctx, error):
         raise error
 
 
-@scribe.command()
+@commands.command()
 async def help(ctx):
     await ctx.send(
         "Use `!pin <first few words of message>` to pin a single message.\n\n" \
@@ -242,11 +275,9 @@ async def help(ctx):
         "Use `!help` to display this help message.\n\n" \
         "Use `!invite` to obtain an invite for Scribe.")
 
-@scribe.command()
+@commands.command()
 async def invite(ctx):
     await ctx.send("Invite Scribe to your server! https://discordapp.com/api/oauth2/authorize?client_id=413082884912578560&permissions=0&scope=bot")
 
-if sys.argv[1] in ("dev", "test"):
-    scribe.run('NDE2MDUxMjQ2Nzc2OTc1MzYx.DW-1cw.Mu2snuR0kfsCnezGPcA4BoLiB7c')
-elif sys.argv[1] in ("prod", "production"):
-    scribe.run('NDEzMDgyODg0OTEyNTc4NTYw.DWTo9Q.ZW29xMylWrV5uS1qKgHPqlcVQGM')
+loop = asyncio.get_event_loop()
+loop.run_until_complete(run(config.token, config.dbc))
