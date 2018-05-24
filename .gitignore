@@ -3,3 +3,5 @@ python-old/
 pins/
 __pycache__/
 config.py
+pins_pre_20180523/
+pins_txt/

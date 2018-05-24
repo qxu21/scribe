@@ -11,6 +11,7 @@ import os
 import os.path
 import sys
 import re
+import json
 
 # TODO:
 # 2. reactions?
@@ -20,13 +21,9 @@ import re
 # tell to use devmode
 # allow messages that start with mentions
 # add !pun
-
-# MAYBEDO:
-# create its own directories
-
-#CURRENTLY: reading asyncpg example, considering messing with inheritance
-
-scribe = commands.Bot(command_prefix='!')
+# serve up .txts with apache or flask using some sort of authenticator or randomizer
+# eventually !pinfile will return urls instead of files
+# add logging per documentation
 
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
@@ -42,6 +39,7 @@ class Scribe(commands.Bot):
         self.add_command(help)
         self.add_command(pinfile)
         self.add_command(invite)
+        self.add_command(omnipinfile)
 
 async def run(token, credentials):
     db = await asyncpg.create_pool(**credentials)
@@ -81,45 +79,57 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False):
             message = await channel.get_message(search)
             return message
         except discord.NotFound:
-            return None
-    else:
-        # id msgs were handled above, so here we have a string that needs to be searched
-        ptl_msg = await channel.history().find(
-                lambda m: (m.content.startswith(search) or m.clean_content.startswith(search)) and m.channel == channel)
-        #???
-        #if ptl_msg is None:
-        #    return None
+            search = str(search)
+    # id msgs were handled above, so here we have a string that needs to be searched
+    ptl_msg = await channel.history().find(
+            lambda m: (m.content.startswith(search) or m.clean_content.startswith(search)) and m.channel == channel)
+    #???
+    #if ptl_msg is None:
+    #    return None
 
-        # we found a message
-        return ptl_msg
+    # we found a message
+    return ptl_msg
 
-def pretty_print(m):
-    s = ""
-    if m.edited_at is None:
-        s += "[{}] {}#{}: {}\n".format(
-                m.created_at.replace(microsecond=0).isoformat(),
-                m.author.name,
-                m.author.discriminator,
-                m.clean_content)
-    else:
-        s += "[{} edited {}] {}#{}: {}\n".format(
-                m.created_at.replace(microsecond=0).isoformat(),
-                m.edited_at.replace(microsecond=0).isoformat(),
-                m.author.name,
-                m.author.discriminator,
-                m.clean_content)
-    if m.attachments != []:
-        for a in m.attachments:
-            s += "ATTACHMENT: {}\n".format(a.url)
-    return s
+def msg_to_json(m, isquote=False, pinner=None):
+    d = {
+            "timestamp": m.created_at.replace(microsecond=0).isoformat(),
+            "edited_timestamp":
+                (m.edited_at.replace(microsecond=0).isoformat()
+                if m.edited_at is not None else None),
+            "author_name": m.author.name,
+            "author_discrim": m.author.discriminator,
+            "content": m.clean_content,
+            "attachments": [a.url for a in m.attachments]}
+    if not isquote:
+        d["pinner_id"] = (pinner.id if pinner is not None else None),
+        d["pin_timestamp"] = datetime.datetime.now().replace(microsecond=0).isoformat()
+        d["is_quote"] = False
+    return d
 
-
-def pin_message(message):
-    if type(message) == discord.Message:
-        pin_text(message.channel, pretty_print(message))
-    elif type(message) == list:
-        for m in message:
-            pin_text(message.channel, pretty_print(m)) # errors probably aaa rushhhhh
+def pin_json(channel, j):
+    # OPTIMIZATION POTENTIAL: make this async
+    # ripped from pin_text and modified beyond recognition kinda
+    dn = "pins/{}".format(channel.guild.id)
+    fn = "{}.json".format(channel.id)
+    f = os.path.join(dn,fn)
+    if not os.path.isdir(dn):
+        os.makedirs(dn)
+    try:
+        # it's okay if this throws
+        if os.path.getsize(f) != 0:
+            with open(f) as fi:
+                jobj = json.load(fi)
+        else:
+            jobj = []
+    except FileNotFoundError:
+        jobj = []
+    except json.JSONDecodeError:
+        print("PANIC! DECODE ERROR!")
+        channel.send("An error occurred in pinning.")
+        raise
+    jobj.append(j)
+    with open(f, "w") as fo:
+        json.dump(jobj, fo)
 
 def pin_text(channel, text):
     # OPTIMIZATION POTENTIAL: make this async
@@ -161,13 +171,16 @@ async def on_guild_channel_pins_update(channel, last_pin_time):
 
 def format_for_feedback(string):
     # if i had figured out to chain replace calls earlier
+    if string == "":
+        return "[no message content]"
     string = string.replace('`','').replace('\n', ' ')
     string = string.strip()
-    if len(string) < 20:
+    if len(string) <= 20:
         return string
     else:
         return string[:20] + "..."
 
+    # this code will never execute :thinking:
     # main command for this bot is gonna be !pin
     if ctx.channel.permissions_for(ctx.guild.me).send_messages == False:
         # no send, no pin
@@ -179,9 +192,7 @@ async def pin(ctx, *, msg):
     if pin_msg is None:
         await ctx.send("Message not found.")
         return
-    pin_string = ""
-    pin_string = pretty_print(pin_msg)
-    pin_text(ctx.channel, pin_string)
+    pin_json(ctx.channel, msg_to_json(pin_msg, False, ctx.message.author))
     await ctx.send(
             "The message `{}` has been pinned.".format(
                 format_for_feedback(pin_msg.content)))
@@ -193,8 +204,8 @@ async def quote(ctx, *, msg):
         await ctx.send((
                 "Please quote in the format:\n"
                 "`!quote\n"
-                "<start message search string>\n"
-                "<end message search string>`"))
+                "<start message search string or start message id>\n"
+                "<end message search string or end message id>`"))
         return
     start_context = await find_message(spl[0], ctx.channel)
     if start_context is None:
@@ -209,12 +220,29 @@ async def quote(ctx, *, msg):
         tmp = end_context
         end_context = start_context
         start_context = tmp
-    pin_string = ""
-    async for m in ctx.channel.history(limit=60,
+    #pin_string = ""
+    # not gonna mess with this eldritch cache
+    #for m in ctx.bot._connection._messages:
+    #    if (m.channel == ctx.channel
+    #            and m.created_at > start_context.created_at
+    #            and m.created_at < end_context.created_at):
+    #        h.append(m)
+    #if not (start_context in h and end_context in h):
+    #    print("falling back")
+    h = await ctx.channel.history(limit=200,
             before=end_context.created_at + datetime.timedelta(microseconds=1000), 
-            after=start_context.created_at - datetime.timedelta(microseconds=1000)): 
-        pin_string += pretty_print(m)
-    pin_text(ctx.channel, pin_string)
+            after=start_context.created_at - datetime.timedelta(microseconds=1000)).flatten()
+    ids = [m.id for m in h]
+    #for m in h:
+    #    print(m.content)
+    if start_context.id not in ids or end_context.id not in ids:
+        await ctx.send("The quote selection is too large. Please limit quotes to 200 messages.")
+        return
+    pin_json(ctx.channel, {
+        "is_quote": True,
+        "pinner": ctx.message.author.id,
+        "pin_timestamp": datetime.datetime.now().replace(microsecond=0).isoformat(),
+        "messages": [msg_to_json(m, True) for m in h]})
     await ctx.send(
             "The quote starting with `{}` and ending with `{}` has been pinned.".format(
                 format_for_feedback(start_context.clean_content),
@@ -231,9 +259,48 @@ async def unpin(ctx):
         await ctx.send("No pins have been recorded for this channel")
         return
 
+def json_msg_to_text(j):
+    if "edited_timestamp" in j and j["edited_timestamp"] is not None:
+        return "[{} edited {}] {}#{}: {}".format(
+            j["timestamp"],
+            j["edited_timestamp"],
+            j["author_name"],
+            j["author_discrim"],
+            j["content"])
+    else:
+        return "[{}] {}#{}: {}".format(
+            j["timestamp"],
+            j["author_name"],
+            j["author_discrim"],
+            j["content"])
+
+def json_file_to_string(fn):
+    with open(fn) as fi:
+        j = json.load(fi)
+    #except json.JSONDecodeError:
+    #    await ctx.send("An error occurred retrieving the pinfile.")
+    #    raise
+    # time to comprehend lists
+    return "\n\n\n".join([
+        re.sub(r"\n{2,}", "\n\n",
+            (("\n".join([json_msg_to_text(m) for m in e["messages"]]))
+                if e["is_quote"]
+                else json_msg_to_text(e)))
+        for e in j])
+
+class UnionChannelAll(commands.TextChannelConverter):
+    async def convert(self, ctx, arg):
+        if arg == "all":
+            for c in ctx.guild.text_channels:
+                if c.name == "all":
+                    await ctx.send("This server has a channel named #all. If you wanted to request the serverwide pinfile, try !omnipinfile instead.")
+                    return await super().convert(ctx, arg)
+            return "all"
+        else:
+            return await super().convert(ctx, arg)
 
 @commands.command()
-async def pinfile(ctx, channel: discord.TextChannel = None):
+async def pinfile(ctx, channel: UnionChannelAll = None):
     #if len(ctx.message.channel_mentions) == 1:
     #    cn = ctx.message.channel_mentions[0]
     #elif len(ctx.message.channel_mentions) > 1:
@@ -241,21 +308,54 @@ async def pinfile(ctx, channel: discord.TextChannel = None):
     #    return
     #else:
     #    cn = ctx.channel
+    await send_pinfile(ctx, channel)
+
+async def send_pinfile(ctx, channel):
     if channel is None:
         channel = ctx.channel
     dn = "pins/{}".format(ctx.guild.id)
-    fn = "{}.txt".format(channel.id)
-    filename = "scribe-{}-{}-{}.txt".format(
-            ctx.guild.name,
-            channel.name,
-            datetime.datetime.utcnow().replace(microsecond=0).isoformat())
-    if not os.path.isdir(dn) or not os.path.isfile(os.path.join(dn, fn)):
-        await ctx.send("No pins have been recorded for this channel!")
-        return
+    odn = "pins_txt/{}".format(ctx.guild.id)
+    if not os.path.isdir(odn):
+        os.makedirs(odn)
+    if channel != "all":
+        fn = "{}.json".format(channel.id)
+        fi = os.path.join(dn, fn)
+        fo = os.path.join(odn, "scribe-{}-{}.txt".format(
+                ctx.guild.name,
+                channel.name))
+        if not os.path.isdir(dn) or not os.path.isfile(fi) or os.path.getsize(fi) == 0:
+            await ctx.send("No pins have been recorded for this channel!")
+            return
+        o = json_file_to_string(fi)
+    else:
+        fo = os.path.join(odn, "scribe-{}.txt".format(
+                ctx.guild.name))
+        #print(os.listdir(dn))
+        #print(os.path.splitext(os.listdir(dn)[0])[0].isdigit())
+        #print(ctx.guild.get_channel(int(os.path.splitext(os.listdir(dn)[0])[0])))
+        #fls = [f for f in os.listdir(dn) if f.endswith(".json") and f.isdigit()]
+        #fn_cn = {}
+        #for f in fls:
+            # we can assume these are all ints
+            # bummer, i wanted to make this a comprehension too but you can't
+            # await in comprehensions yet
+        #    ch = await ctx.guild.get_channel(int(os.path.splitext(f)[0]))
+        #    if ch is not None:
+        #        fn_cn[f] = ch.name
+        o = "\n\n\n".join([
+            "--- #{} ---\n\n".format(
+                ctx.guild.get_channel(int(os.path.splitext(f)[0])).name)
+            + json_file_to_string(os.path.join(dn,f))
+            for f in os.listdir(dn) if f.endswith(".json") and os.path.splitext(f)[0].isdigit()])
+    with open(fo, 'w') as f:
+        f.write(o)
     await ctx.send(
             file=discord.File(
-                fp=os.path.join(dn, fn),
-                filename=filename))
+                fp=fo))
+
+@commands.command()
+async def omnipinfile(ctx):
+    await send_pinfile(ctx, "all")
 
 @pinfile.error
 async def pinfile_error(ctx, error):
@@ -270,9 +370,9 @@ async def help(ctx):
     await ctx.send(
         "Use `!pin <first few words of message>` to pin a single message.\n\n" \
         "`!quote\n<first few words of start message>\n<first few words of end message>`\npins a message block.\n\n" \
-        "The bot also accepts message IDs if you know how to find them.\n\n" \
         "The bot also accepts message IDs. You can copy any message's ID by turning on Developer Mode in the Appearance menu of Discord settings. This seems to be the only thing Developer Mode does.\n\n" \
         "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
+        "Use `!pinfile all` or `!omnipinfile` to grab a pinfile for the whole server.\n\n" \
         "Use `!help` to display this help message.\n\n" \
         "Use `!invite` to obtain an invite for Scribe.\n\n" \
         "Additional support can be obtained at https://discord.gg/Tk6G9Gr")

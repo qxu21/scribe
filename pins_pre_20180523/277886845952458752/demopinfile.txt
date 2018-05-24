@@ -1,0 +1,41 @@
+[2018-02-23T02:27:57] Loaf#3599: the test bot is offline
+[2018-02-23T03:39:39] Loaf#3599: !pinfile
+[2018-02-23T03:44:40] Loaf#3599: :/
+
+
+[2018-03-02T02:50:01] Loaf#3599: checking that it won't whine in the logs when it can't send
+
+
+[2018-03-05T02:12:40] Loaf#3599: nice
+
+
+[2018-03-05T02:14:13] Loaf#3599: `malicious codeblock`
+
+
+
+[2018-03-05T02:25:21] Loaf#3599: oof
+
+
+[2018-03-05T02:30:17] Loaf#3599: !pin wait
+what
+
+
+[2018-03-05T02:31:10] Loaf#3599: !pin wait
+what
+
+
+[2018-03-05T02:26:42] Loaf#3599: wait
+what
+if
+i
+use
+enters
+i
+tried
+
+
+[2018-03-05T02:33:48] Loaf#3599: Pin demo!
+
+
+[2018-03-05T02:33:48] Loaf#3599: Pin demo!
+[2018-03-05T02:33:54] Loaf#3599: Yaaaaaaay
