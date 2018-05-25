@@ -92,6 +92,7 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False):
 
 def msg_to_json(m, isquote=False, pinner=None):
     d = {
+            "id": m.id,
             "timestamp": m.created_at.replace(microsecond=0).isoformat(),
             "edited_timestamp":
                 (m.edited_at.replace(microsecond=0).isoformat()
