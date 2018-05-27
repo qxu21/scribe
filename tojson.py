@@ -18,7 +18,7 @@ def msg_to_json(msg):
                 "content": msg[uend+7:],
                 "pinner_id":  None,
                 "pin_timestamp": None}
-    elif msg[47] == "]":
+    elif len(msg) > 47 and msg[47] == "]":
         #[2018-02-23T02:28:23 edited 2018-02-23T02:28:36] SpockMan02#4611: Coolio
         #01234567890123456789012345678901234567890123456789
         b = {
@@ -30,6 +30,9 @@ def msg_to_json(msg):
                 "content": msg[uend+7:],
                 "pinner_id":  None,
                 "pin_timestamp": None}
+    else:
+        print(msg)
+        raise RuntimeError
     b["attachments"] = []
     if "\nATTACHMENT: " in msg:
         for a in msg.split("\nATTACHMENT: ")[1:]:
@@ -37,7 +40,8 @@ def msg_to_json(msg):
     print("Result: " + ", ".join(["{}: {}".format(k, v) for k, v in b.items()]))
     return b
 
-pindir = os.path.join(os.getcwd(),'pins')
+pindir = os.path.join(os.getcwd(),'old_pins')
+outdir = os.path.join(os.getcwd(),'pins')
 print("Found pindir at " + pindir)
 for serverdir in os.listdir(pindir):
     print("Executing in server directory " + serverdir)
@@ -67,11 +71,17 @@ for serverdir in os.listdir(pindir):
                     break
                 isfirst = False
             if isquote:
-                msgs = brick.split("\n[")
+                protomsgs = re.split(r"(\n\[.{19,50}?])", brick)
+                msgs = [protomsgs[0]]
+                for n in range(1,len(protomsgs),2):
+                    #print("n="+str(n))
+                    #print("Joining" + protomsgs[n] + protomsgs[n+1])
+                    msgs.append(protomsgs[n][1:] + protomsgs[n+1])
+                print("msgs: " + str(msgs))
                 q = [msg_to_json(msgs[0])]
                 # i have regrets
                 for m in msgs[1:]:
-                    q.append(msg_to_json("[" + m))
+                    q.append(msg_to_json(m))
                 json_out.append({
                         "is_quote": True,
                         "pinner": None,
@@ -81,8 +91,9 @@ for serverdir in os.listdir(pindir):
                 b = msg_to_json(brick)
                 b["is_quote"] = False
                 json_out.append(b)
-        with open(os.path.join(pindir, serverdir, os.path.splitext(fi)[0]) + ".json", "w") as out:
+        outpath = os.path.join(outdir, serverdir)
+        if not os.path.isdir(outpath):
+            os.makedirs(outpath)
+        with open(os.path.join(outpath, os.path.splitext(fi)[0]) + ".json", "w") as out:
             json.dump(json_out, out)
-        print("File processed to " + str(json_out))
-            #["{}: {}".format(k, v) for k, v in json_out.items()]))
 
