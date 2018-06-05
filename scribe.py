@@ -24,6 +24,7 @@ import json
 # serve up .txts with apache or flask using some sort of authenticator or randomizer
 # eventually !pinfile will return urls instead of files
 # add logging per documentation
+# make emojis just be names, also mentions
 
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
@@ -262,18 +263,22 @@ async def unpin(ctx):
 
 def json_msg_to_text(j):
     if "edited_timestamp" in j and j["edited_timestamp"] is not None:
-        return "[{} edited {}] {}#{}: {}".format(
+        e = "[{} edited {}] {}#{}: {}".format(
             j["timestamp"],
             j["edited_timestamp"],
             j["author_name"],
             j["author_discrim"],
             j["content"])
     else:
-        return "[{}] {}#{}: {}".format(
+        e = "[{}] {}#{}: {}".format(
             j["timestamp"],
             j["author_name"],
             j["author_discrim"],
             j["content"])
+    if "attachments" in j:
+        for a in j["attachments"]:
+            e += "\nATTACHMENT: " + a
+    return e
 
 def json_file_to_string(fn):
     with open(fn) as fi:
