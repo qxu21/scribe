@@ -25,6 +25,8 @@ import json
 # eventually !pinfile will return urls instead of files
 # add logging per documentation
 # make emojis just be names, also mentions
+# !aidanpinfile that does blink tags
+# !babelpinfile
 
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
@@ -277,8 +279,8 @@ def json_msg_to_text(j):
             j["content"])
     if "attachments" in j:
         for a in j["attachments"]:
-            e += "\nATTACHMENT: " + a
-    return e
+            e += "\r\nATTACHMENT: " + a
+    return e.replace("\n","\r\n")
 
 def json_file_to_string(fn):
     with open(fn) as fi:
@@ -287,9 +289,9 @@ def json_file_to_string(fn):
     #    await ctx.send("An error occurred retrieving the pinfile.")
     #    raise
     # time to comprehend lists
-    return "\n\n\n".join([
-        re.sub(r"\n{2,}", "\n\n",
-            (("\n".join([json_msg_to_text(m) for m in e["messages"]]))
+    return "\r\n\r\n\r\n".join([
+        re.sub(r"(\r\n){2,}", "\r\n\r\n",
+            (("\r\n".join([json_msg_to_text(m) for m in e["messages"]]))
                 if e["is_quote"]
                 else json_msg_to_text(e)))
         for e in j])
