@@ -27,6 +27,7 @@ import json
 # make emojis just be names, also mentions
 # !aidanpinfile that does blink tags
 # !babelpinfile
+# unify !quote and !pin
 
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
@@ -244,7 +245,7 @@ async def quote(ctx, *, msg):
         return
     pin_json(ctx.channel, {
         "is_quote": True,
-        "pinner": ctx.message.author.id,
+        "pinner_id": ctx.message.author.id,
         "pin_timestamp": datetime.datetime.now().replace(microsecond=0).isoformat(),
         "messages": [msg_to_json(m, True) for m in h]})
     await ctx.send(
