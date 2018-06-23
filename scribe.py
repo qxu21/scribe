@@ -113,9 +113,7 @@ def msg_to_json(m, isquote=False, pinner=None):
             "attachments": [a.url for a in m.attachments]}
     if not isquote:
         d["pinner_id"] = pinner.id if pinner is not None else None
-        print(d["pinner_id"])
-        print(pinner.id)
-        d["pin_timestamp"] = datetime.datetime.now().replace(microsecond=0).isoformat()
+        d["pin_timestamp"] = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
         d["is_quote"] = False
     return d
 
@@ -254,7 +252,7 @@ async def quote(ctx, *, msg):
     pin_json(ctx.channel, {
         "is_quote": True,
         "pinner_id": ctx.message.author.id,
-        "pin_timestamp": datetime.datetime.now().replace(microsecond=0).isoformat(),
+        "pin_timestamp": datetime.datetime.utcnow().replace(microsecond=0).isoformat(),
         "messages": [msg_to_json(m, True) for m in h]})
     await ctx.send(
             "The quote starting with `{}` and ending with `{}` has been pinned.".format(
@@ -270,15 +268,17 @@ async def unpin(ctx):
     if not os.path.isdir(dn) or not os.path.isfile(name):
         await ctx.send("No pins have been recorded for this channel.")
         return
-    print(name)
     with open(name) as f:
         j = json.load(f)
     #so with step size of -1 it flips then counts
     #doing this backwards to favor unpinning new stuff over old stuff
     k = j[::-1]
-    for m in k[:10]:
-        print(m)
+    for m in k[:5]:
         if "pinner_id" in m and m["pinner_id"] == ctx.message.author.id:
+            mt = datetime.datetime.strptime(m['pin_timestamp'], '%Y-%m-%dT%H:%M:%S')
+            if datetime.datetime.utcnow() - mt > datetime.timedelta(minutes=3):
+                await ctx.send("The last message you pinned is too old to be unpinned!")
+                return
             j.remove(m) # may be horribly inefficient
             if m["is_quote"]:
                 await ctx.send("Unpinned the quote starting with the message that starts with {}".format(
@@ -289,7 +289,7 @@ async def unpin(ctx):
             success = True
             break
     if not success:
-        await ctx.send("You have not pinned one of the last ten pins.")
+        await ctx.send("You have not pinned one of the last five pins.")
         return
     with open(name, 'w') as g:
         json.dump(j, g)
@@ -416,6 +416,7 @@ async def help(ctx):
         "The bot also accepts message IDs. You can copy any message's ID by turning on Developer Mode in the Appearance menu of Discord settings. This seems to be the only thing Developer Mode does.\n\n" \
         "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
         "Use `!pinfile all` or `!omnipinfile` to grab a pinfile for the whole server.\n\n" \
+        "Use `!unpin` to un"
         "Use `!help` to display this help message.\n\n" \
         "Use `!invite` to obtain an invite for Scribe.\n\n" \
         "Additional support can be obtained at https://discord.gg/Tk6G9Gr")
