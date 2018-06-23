@@ -1,0 +1,29 @@
+SCRIBE JSON PINFILE FORMAT
+
+Each channel has its own pinfile, <channelid>.json.
+
+Each json file is an array of objects.
+
+There are two types of objects in the top-level array, message objects and quote objects. Message objects have the property is_quote set to false, while quote objects have the property set to true.
+
+A message object has the following attributes:
+content: The message content, exactly as typed by the user
+is_quote: false for all message objects
+*id: contains the message id
+attachments: an array of cdn.discordapp.com URLs to each message attachment
+author_name: The author's name
+author_discrim: The author's discriminator (4-digit code after the # in a username)
+timestamp: The ISO-formatted UTC timestamp of the message accurate to the nearest second, formatted YYYY-MNM-DDTHH:MM:SS
+edited_timestamp: If the message was edited after being sent, this contained the ISO-formatted UTC timestamp of editing, otherwise null
+*pinner_id: contains the user id of the message pinner
+*pin_timestamp: contains the time the message was pinned
+
+Fields marked with * are null or may be nonexistent for messages before commit 28552ea on 2018-05-26.
+
+A quote object has the following attributes:
+is_quote: true for all quote objects
+pinner_id: same as in message object
+pin_timestamp: same as in message object
+messages: an array of message objects included in the quote
+
+All fields are strings except for pinner_id, which is an integer.

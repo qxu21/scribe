@@ -13,6 +13,8 @@ import sys
 import re
 import json
 
+#IMMINENT TODO: find . -regex ".*\.json" | xargs sed -i s/\"pinner\"/\"pinner_id\"/g, and also regex out pinner_id numbers in their own arrays
+
 # TODO:
 # 2. reactions?
 # 4. pincaps
@@ -29,6 +31,9 @@ import json
 # !babelpinfile
 # unify !quote and !pin
 
+# KNOWN ISSUES
+# in parsed (pre-json messages) attachment urls are incorrectly placed into content as well as the attachments array
+
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
     #ripped from altarrel
@@ -44,6 +49,7 @@ class Scribe(commands.Bot):
         self.add_command(pinfile)
         self.add_command(invite)
         self.add_command(omnipinfile)
+        #self.add_command(unpin)
 
 async def run(token, credentials):
     db = await asyncpg.create_pool(**credentials)
@@ -106,7 +112,7 @@ def msg_to_json(m, isquote=False, pinner=None):
             "content": m.clean_content,
             "attachments": [a.url for a in m.attachments]}
     if not isquote:
-        d["pinner_id"] = (pinner.id if pinner is not None else None),
+        d["pinner_id"] = pinner.id if pinner is not None else None,
         d["pin_timestamp"] = datetime.datetime.now().replace(microsecond=0).isoformat()
         d["is_quote"] = False
     return d
@@ -253,16 +259,50 @@ async def quote(ctx, *, msg):
                 format_for_feedback(start_context.clean_content),
                 format_for_feedback(end_context.clean_content)))
 
-@commands.command
+@commands.command()
 async def unpin(ctx):
-    # pin format:
-    #[2018-02-23T02:28:23] SpockMan02#4611: Coolio
-    #012345678901234567890123456789012345678901234567890
+    #put below into a function at some point
     dn = "pins/{}".format(ctx.guild.id)
-    fn = "{}.txt".format(ctx.channel.id)
-    if not os.path.isdir(dn) or not os.path.isfile(os.path.join(dn, fn)):
-        await ctx.send("No pins have been recorded for this channel")
+    fn = "{}.json".format(ctx.channel.id)
+    name = os.path.join(dn, fn)
+    if not os.path.isdir(dn) or not os.path.isfile(name):
+        await ctx.send("No pins have been recorded for this channel.")
         return
+    print(name)
+    with open(name) as f:
+        j = json.load(f)
+    #so with step size of -1 it flips then counts
+    #doing this backwards to favor unpinning new stuff over old stuff
+    success = False
+    print(len(j))
+    print(len(j[:10:-1]))
+    if len(j) < 10:
+        rpins = j[::-1]
+    else:
+        rpins = j[:10:-1]
+    for m in rpins:
+        print(m)
+        print(m['pinner_id'])
+        print(ctx.message.author.id)
+        if "pinner_id" in m and m["pinner_id"] == ctx.message.author.id:
+            j.remove(m) # may be horribly inefficient
+            if m["is_quote"]:
+                await ctx.send("Unpinned the quote starting with the message that starts with {}".format(
+                    format_for_feedback(m['messages'][0]['content'])))
+            else:
+                await ctx.send("Unpinned the message starting with {}.".format(
+                    format_for_feedback(m['content'])))
+            success = True
+            break
+    if not success:
+        await ctx.send("You have not pinned one of the last ten pins.")
+        return
+    with open(name, 'w') as g:
+        json.dump(j, g)
+
+
+
+
 
 def json_msg_to_text(j):
     if "edited_timestamp" in j and j["edited_timestamp"] is not None:
