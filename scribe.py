@@ -416,7 +416,7 @@ async def help(ctx):
         "The bot also accepts message IDs. You can copy any message's ID by turning on Developer Mode in the Appearance menu of Discord settings. This seems to be the only thing Developer Mode does.\n\n" \
         "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
         "Use `!pinfile all` or `!omnipinfile` to grab a pinfile for the whole server.\n\n" \
-        "Use `!unpin` to un"
+        "Use `!unpin` to unpin the last message(s) that you pinned, within three minutes of pinning. \n\n" \
         "Use `!help` to display this help message.\n\n" \
         "Use `!invite` to obtain an invite for Scribe.\n\n" \
         "Additional support can be obtained at https://discord.gg/Tk6G9Gr")
