@@ -49,7 +49,7 @@ class Scribe(commands.Bot):
         self.add_command(pinfile)
         self.add_command(invite)
         self.add_command(omnipinfile)
-        #self.add_command(unpin)
+        self.add_command(unpin)
 
 async def run(token, credentials):
     db = await asyncpg.create_pool(**credentials)
@@ -112,7 +112,9 @@ def msg_to_json(m, isquote=False, pinner=None):
             "content": m.clean_content,
             "attachments": [a.url for a in m.attachments]}
     if not isquote:
-        d["pinner_id"] = pinner.id if pinner is not None else None,
+        d["pinner_id"] = pinner.id if pinner is not None else None
+        print(d["pinner_id"])
+        print(pinner.id)
         d["pin_timestamp"] = datetime.datetime.now().replace(microsecond=0).isoformat()
         d["is_quote"] = False
     return d
@@ -273,24 +275,16 @@ async def unpin(ctx):
         j = json.load(f)
     #so with step size of -1 it flips then counts
     #doing this backwards to favor unpinning new stuff over old stuff
-    success = False
-    print(len(j))
-    print(len(j[:10:-1]))
-    if len(j) < 10:
-        rpins = j[::-1]
-    else:
-        rpins = j[:10:-1]
-    for m in rpins:
+    k = j[::-1]
+    for m in k[:10]:
         print(m)
-        print(m['pinner_id'])
-        print(ctx.message.author.id)
         if "pinner_id" in m and m["pinner_id"] == ctx.message.author.id:
             j.remove(m) # may be horribly inefficient
             if m["is_quote"]:
                 await ctx.send("Unpinned the quote starting with the message that starts with {}".format(
                     format_for_feedback(m['messages'][0]['content'])))
             else:
-                await ctx.send("Unpinned the message starting with {}.".format(
+                await ctx.send("Unpinned the message starting with `{}`.".format(
                     format_for_feedback(m['content'])))
             success = True
             break
