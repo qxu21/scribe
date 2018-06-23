@@ -1,5 +1,6 @@
-import sys
 import json
+import os
+import os.path
 
 #this script fixes:
 # 1. pinner_id incorrectly being called pinner in quote objects
@@ -21,15 +22,20 @@ def fix_obj(o):
 		o['messages'] = [fix_obj(m) for m in o['messages']]
 	return o
 
-with open(sys.argv[1]) as f:
-	j = json.load(f)
+for d in os.walk('pins'):
+	for fn in d[2]:
+		if fn.endswith(".json"):
+			p = os.path.join(d[0], fn)
+			print("running on " + p)
+			with open(p) as f:
+				j = json.load(f)
 
-# j is my top-level array
-# nj is my new top-level array
-#nj = [fix_obj(o) for o in j]
-nj = []
-for o in j:
-	nj.append(fix_obj(o))
+			# j is my top-level array
+			# nj is my new top-level array
+			#nj = [fix_obj(o) for o in j]
+			nj = []
+			for o in j:
+				nj.append(fix_obj(o))
 
-with open(sys.argv[1], 'w') as g:
-	json.dump(nj, g)
+			with open(p, 'w') as g:
+				json.dump(nj, g)
