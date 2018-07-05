@@ -7,13 +7,12 @@ import time
 import asyncio
 import types
 import random
+import string
 import os
 import os.path
 import sys
 import re
 import json
-
-#IMMINENT TODO: find . -regex ".*\.json" | xargs sed -i s/\"pinner\"/\"pinner_id\"/g, and also regex out pinner_id numbers in their own arrays
 
 # TODO:
 # 2. reactions?
@@ -29,10 +28,37 @@ import json
 # make emojis just be names, also mentions
 # !aidanpinfile that does blink tags
 # !babelpinfile
-# unify !quote and !pin
+# unify !quote and !pinpage it
+# condense !help or DM it or web
+
+#TODO NEXT UPDATE:
+# guild passwords
+# cronjob to reset guild passwords every so often
+# 
 
 # KNOWN ISSUES
 # in parsed (pre-json messages) attachment urls are incorrectly placed into content as well as the attachments array
+
+#API HERE - API ON HOLD
+
+"""async def handle(request):
+    if request.content_type != "application/json":
+        return web.Response(status=415) #correct status?
+    try:
+        request.json()
+
+    return web.json_response(j)
+
+async def start_api():
+    app = web.Application()
+    app.add_routes([web.get('/api', handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, 'localhost', 8080)
+    await site.start()
+    #runner.cleanup() terminates - use try:? idk man"""
+
+#SCRIBE BOT BELOW THIS LINE
 
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
@@ -50,13 +76,50 @@ class Scribe(commands.Bot):
         self.add_command(invite)
         self.add_command(omnipinfile)
         self.add_command(unpin)
+        self.add_command(password)
+
+    async def register_name(self, id, name):
+        #beware! it seems old guild with default channels have identical ids between guild and default channel.
+        #stay on watch for more edge cases like these
+        await self.db.execute("""INSERT INTO names (id, name)
+            VALUES ($1, $2)
+            ON CONFLICT (id) DO UPDATE
+            SET name=$2;""", id, name)
+
+    async def on_ready(self):
+        for channel in self.get_all_channels():
+            if not isinstance(channel, discord.TextChannel):
+                continue
+            self.loop.create_task(self.register_name(channel.id, channel.name))
+        for guild in self.guilds:
+            pwd = ''.join([random.choice(string.ascii_letters + string.digits) for x in range(0,30)])
+            await self.db.execute("""INSERT INTO guilds (id, name, pwd)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (id) DO UPDATE
+                SET name=$2, pwd=$3;""", guild.id, guild.name, pwd)
+        print("on_ready complete*")
+
+    async def on_guild_channel_create(self, channel):
+        self.loop.create_task(self.register_name(channel.id, channel.name))
+
+    async def on_guild_channel_update(self, before, after):
+        self.loop.create_task(self.register_name(after.id, after.name))
+
+    async def on_guild_join(self, guild):
+        for channel in guild.text_channels:
+            self.loop.create_task(self.register_name(channel.id, channel.name))
+
+    #not gonna bother axing deleted channels, shouldn't be too bad
 
 async def run(token, credentials):
     db = await asyncpg.create_pool(**credentials)
 
-    await db.execute("CREATE TABLE IF NOT EXISTS channels(id bigint PRIMARY KEY, userid bigint);")
+    #await db.execute("CREATE TABLE IF NOT EXISTS channels(id bigint PRIMARY KEY, userid bigint);")
+    await db.execute("CREATE TABLE IF NOT EXISTS names(id bigint PRIMARY KEY, name varchar(102));")
+    await db.execute("CREATE TABLE IF NOT EXISTS guilds(id bigint PRIMARY KEY, name varchar(102), pwd varchar(30));")
 
     scribe = Scribe(db=db)
+    #scribe.loop.create_task(start_api()) #hope this works - API ON HOLD
     try:
         await scribe.start(token)
     except KeyboardInterrupt:
@@ -180,16 +243,16 @@ async def on_guild_channel_pins_update(channel, last_pin_time):
     # pin_message() odd pin - maybe add self.
     """
 
-def format_for_feedback(string):
+def format_for_feedback(s):
     # if i had figured out to chain replace calls earlier
-    if string == "":
+    if s == "":
         return "[no message content]"
-    string = string.replace('`','').replace('\n', ' ')
-    string = string.strip()
-    if len(string) <= 20:
-        return string
+    s = s.replace('`','').replace('\n', ' ')
+    s = s.strip()
+    if len(s) <= 20:
+        return s
     else:
-        return string[:20] + "..."
+        return s[:20] + "..."
 
     # this code will never execute :thinking:
     # main command for this bot is gonna be !pin
@@ -276,7 +339,7 @@ async def unpin(ctx):
     for m in k[:5]:
         if "pinner_id" in m and m["pinner_id"] == ctx.message.author.id:
             mt = datetime.datetime.strptime(m['pin_timestamp'], '%Y-%m-%dT%H:%M:%S')
-            if datetime.datetime.utcnow() - mt > datetime.timedelta(minutes=3):
+            if datetime.datetime.utcnow() - mt > datetime.timedelta(minutes=10):
                 await ctx.send("The last message you pinned is too old to be unpinned!")
                 return
             j.remove(m) # may be horribly inefficient
@@ -294,10 +357,17 @@ async def unpin(ctx):
     with open(name, 'w') as g:
         json.dump(j, g)
 
+#name subject to change
+@commands.command()
+async def password(ctx):
+    guildrow = await ctx.bot.db.fetchrow("""SELECT * 
+        FROM guilds
+        WHERE id=$1""", ctx.guild.id)
+    await ctx.send("Use the following password at https://scribe.fluffybread.net: {}".format(guildrow['pwd']))
 
 
-
-
+#THESE TWO FUNCTIONS HAVE BEEN COPIED INTO GLASS MOSTLY VERBATIM
+#IF BIG CHANGES ARE MADE, CONSIDER MODULARIZING THESE
 def json_msg_to_text(j):
     if "edited_timestamp" in j and j["edited_timestamp"] is not None:
         e = "[{} edited {}] {}#{}: {}".format(
@@ -373,18 +443,6 @@ async def send_pinfile(ctx, channel):
     else:
         fo = os.path.join(odn, "scribe-{}.txt".format(
                 ctx.guild.name))
-        #print(os.listdir(dn))
-        #print(os.path.splitext(os.listdir(dn)[0])[0].isdigit())
-        #print(ctx.guild.get_channel(int(os.path.splitext(os.listdir(dn)[0])[0])))
-        #fls = [f for f in os.listdir(dn) if f.endswith(".json") and f.isdigit()]
-        #fn_cn = {}
-        #for f in fls:
-            # we can assume these are all ints
-            # bummer, i wanted to make this a comprehension too but you can't
-            # await in comprehensions yet
-        #    ch = await ctx.guild.get_channel(int(os.path.splitext(f)[0]))
-        #    if ch is not None:
-        #        fn_cn[f] = ch.name
         o = "\n\n\n".join([
             "--- #{} ---\n\n".format(
                 ctx.guild.get_channel(int(os.path.splitext(f)[0])).name)
@@ -410,16 +468,7 @@ async def pinfile_error(ctx, error):
 
 @commands.command()
 async def help(ctx):
-    await ctx.send(
-        "Use `!pin <first few words of message>` to pin a single message.\n\n" \
-        "`!quote\n<first few words of start message>\n<first few words of end message>`\npins a message block.\n\n" \
-        "The bot also accepts message IDs. You can copy any message's ID by turning on Developer Mode in the Appearance menu of Discord settings. This seems to be the only thing Developer Mode does.\n\n" \
-        "Use `!pinfile` to grab the current channel's pin file, or `!pinfile #channel` to obtain another channel's pin file.\n\n" \
-        "Use `!pinfile all` or `!omnipinfile` to grab a pinfile for the whole server.\n\n" \
-        "Use `!unpin` to unpin the last message(s) that you pinned, within three minutes of pinning. \n\n" \
-        "Use `!help` to display this help message.\n\n" \
-        "Use `!invite` to obtain an invite for Scribe.\n\n" \
-        "Additional support can be obtained at https://discord.gg/Tk6G9Gr")
+    await ctx.send("HEY, TELL LOAF TO PUT THE CORRECT URL IN HERE, BUT HELP IS SOMEWHERE ON https://scribe.fluffybread.net!")
 
 
 @commands.command()
