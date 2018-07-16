@@ -335,6 +335,7 @@ async def unpin(ctx):
         j = json.load(f)
     #so with step size of -1 it flips then counts
     #doing this backwards to favor unpinning new stuff over old stuff
+    success = False
     k = j[::-1]
     for m in k[:5]:
         if "pinner_id" in m and m["pinner_id"] == ctx.message.author.id:
