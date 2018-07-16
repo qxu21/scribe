@@ -344,7 +344,7 @@ async def unpin(ctx):
                 return
             j.remove(m) # may be horribly inefficient
             if m["is_quote"]:
-                await ctx.send("Unpinned the quote starting with the message that starts with {}".format(
+                await ctx.send("Unpinned the quote starting with the message that starts with `{}`".format(
                     format_for_feedback(m['messages'][0]['content'])))
             else:
                 await ctx.send("Unpinned the message starting with `{}`.".format(
