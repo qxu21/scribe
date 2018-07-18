@@ -76,7 +76,7 @@ class Scribe(commands.Bot):
         self.add_command(invite)
         self.add_command(omnipinfile)
         self.add_command(unpin)
-        self.add_command(password)
+        self.add_command(link)
 
     async def register_name(self, id, name):
         #beware! it seems old guild with default channels have identical ids between guild and default channel.
@@ -365,7 +365,7 @@ async def unpin(ctx):
 
 #name subject to change
 @commands.command()
-async def password(ctx):
+async def link(ctx):
     guildrow = await ctx.bot.db.fetchrow("""SELECT * 
         FROM guilds
         WHERE id=$1""", ctx.guild.id)
