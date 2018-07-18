@@ -108,6 +108,11 @@ class Scribe(commands.Bot):
     async def on_guild_join(self, guild):
         for channel in guild.text_channels:
             self.loop.create_task(self.register_name(channel.id, channel.name))
+        pwd = ''.join([random.choice(string.ascii_letters + string.digits) for x in range(0,30)])
+        await self.db.execute("""INSERT INTO guilds (id, name, pwd)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (id) DO UPDATE
+            SET name=$2, pwd=$3;""", guild.id, guild.name, pwd)
 
     #not gonna bother axing deleted channels, shouldn't be too bad
 
@@ -364,7 +369,7 @@ async def password(ctx):
     guildrow = await ctx.bot.db.fetchrow("""SELECT * 
         FROM guilds
         WHERE id=$1""", ctx.guild.id)
-    await ctx.send("Use the following password at https://scribe.fluffybread.net: {}".format(guildrow['pwd']))
+    await ctx.send("https://scribe.fluffybread.net/?pwd={}".format(guildrow['pwd']))
 
 
 #THESE TWO FUNCTIONS HAVE BEEN COPIED INTO GLASS MOSTLY VERBATIM
