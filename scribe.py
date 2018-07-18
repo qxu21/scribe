@@ -474,7 +474,7 @@ async def pinfile_error(ctx, error):
 
 @commands.command()
 async def help(ctx):
-    await ctx.send("HEY, TELL LOAF TO PUT THE CORRECT URL IN HERE, BUT HELP IS SOMEWHERE ON https://scribe.fluffybread.net!")
+    await ctx.send("https://scribe.fluffybread.net/help")
 
 
 @commands.command()
