@@ -1,0 +1,21 @@
+```json
+{
+    "members": [
+        "member_id" ###
+        "bom": {word: frequency,...},
+        "words": [
+                {
+                    "word": "bottomtext"
+                    "total": ###
+                    "eom_count": ###
+                    //"next": [{"word": word, "freq": frequency}...]
+                    "next": {word: frequency,...}
+                },
+                ...
+            ]
+        },
+        ...
+    }
+    [random metadata]
+}
+```

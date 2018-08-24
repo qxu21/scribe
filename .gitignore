@@ -7,3 +7,4 @@ pins_pre_20180523/
 pins_txt/
 old_pins/
 *.json
+wumpus_config.py
