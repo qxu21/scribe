@@ -5,6 +5,10 @@ import wumpus_config
 import asyncio
 import random
 
+#TODO:
+#MAKE ASYNC
+#ANTIDEADNAME
+
 class Wumpus(commands.Bot):
     #subclassing Bot so i can store my own properites
     #ripped from altarrel
@@ -41,25 +45,33 @@ async def run(token):
 async def build(ctx):
 	#MOVE THIS TO ONGUILDJOIN WHEN DONE
 	for channel in ctx.guild.text_channels:
+	#for channel in (ctx.guild.get_channel(330362198960373760),):
 		if not channel.permissions_for(ctx.guild.get_member(ctx.bot.user.id)).read_messages:
 			continue
 		print("Working on {}.".format(channel.name))
 		async for msg in channel.history(limit=None):
 			print(msg.created_at.isoformat())
 			l = msg.content.split()
+			for m in l:
+				if m == "derek":
+					print("deadnames murdered++")
+					m = "maya"
+				elif m == "Derek":
+					print("deadnames murdered++")
+					m = "Maya"
 			if len(l) == 0:
-				print("Contentless message.")
+				#print("Contentless message.")
 				continue
 			user = ctx.bot.db.users.find_one({"user_id":msg.author.id})
 			if user is None:
-				print("Spawning a user for {}.".format(msg.author.name))
+				#print("Spawning a user for {}.".format(msg.author.name))
 				ctx.bot.db.users.insert_one({
 					"user_id": msg.author.id,
 					"total": 1,
 					"bom": []
 				})
 			else:
-				print("Updating a user's total.")
+				#print("Updating a user's total.")
 				ctx.bot.db.users.update_one(
 					{"user_id": msg.author.id},
 					{"$inc": {"total": 1}}
@@ -68,13 +80,13 @@ async def build(ctx):
 				"user_id": msg.author.id,
 				"bom.word": l[0]})
 			if bom_entry is None:
-				print("{} has never started a message before!".format(l[0]))
+				#print("{} has never started a message before!".format(l[0]))
 				ctx.bot.db.users.update_one(
 					{"user_id": msg.author.id},
 					{"$addToSet": {"bom": {"word": l[0], "freq": 1}}}
 				)
 			else:
-				print("Bumping the count of {}".format(l[0]))
+				#print("Bumping the count of {}".format(l[0]))
 				ctx.bot.db.users.update_one(
 					{
 					"user_id": msg.author.id,
@@ -88,7 +100,7 @@ async def build(ctx):
 					"word": word
 				})
 				if word_entry is None:
-					print("{} has never been used!".format(word))
+					#print("{} has never been used!".format(word))
 					ctx.bot.db.words.insert_one({
 						"user_id": msg.author.id,
 						"word": word,
@@ -97,7 +109,7 @@ async def build(ctx):
 						"eom_count": 0
 					})
 				else:
-					print("Bumping {}".format(word))
+					#print("Bumping {}".format(word))
 					ctx.bot.db.words.update_one({
 						"user_id": msg.author.id,
 						"word": word
@@ -105,7 +117,7 @@ async def build(ctx):
 						{"$inc": {"total":1}}
 					)
 				if index == len(l)-1:
-					print("Bumping {}'s EOM count.".format(word))
+					#print("Bumping {}'s EOM count.".format(word))
 					ctx.bot.db.words.update_one({
 						"user_id": msg.author.id,
 						"word": word
@@ -119,7 +131,7 @@ async def build(ctx):
 						"next.word": l[index+1]
 						})
 					if next_entry is None:
-						print("Adding {} to {}'s NEXT.".format(l[index+1],word))
+						#print("Adding {} to {}'s NEXT.".format(l[index+1],word))
 						ctx.bot.db.words.update_one({
 							"user_id": msg.author.id,
 							"word": word
@@ -127,7 +139,7 @@ async def build(ctx):
 							{"$addToSet": {"next": {"word": l[index+1], "freq": 1}}}
 						)
 					else:
-						print("Bumping {} in {}'s NEXT.".format(l[index+1],word))
+						#print("Bumping {} in {}'s NEXT.".format(l[index+1],word))
 						ctx.bot.db.words.update_one({
 							"user_id": msg.author.id,
 							"word": word,
