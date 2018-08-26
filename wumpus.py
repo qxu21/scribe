@@ -44,6 +44,7 @@ async def run(token):
 
 # commands
 @commands.command()
+@commands.is_owner()
 async def build(ctx):
 	#MOVE THIS TO ONGUILDJOIN WHEN DONE
 	for channel in ctx.guild.text_channels:
