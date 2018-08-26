@@ -1,5 +1,6 @@
 from discord.ext import commands
-from pymongo import MongoClient
+#from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 import discord
 import wumpus_config
 import asyncio
@@ -8,6 +9,7 @@ import random
 #TODO:
 #MAKE ASYNC
 #ANTIDEADNAME
+#REMOVE PINGS
 
 class Wumpus(commands.Bot):
     #subclassing Bot so i can store my own properites
@@ -16,7 +18,7 @@ class Wumpus(commands.Bot):
         super().__init__(
             command_prefix="wumpus "
         )
-        self.db_client = MongoClient()
+        self.db_client = AsyncIOMotorClient()
         self.db = self.db_client.wumpus
         self.remove_command("help")
         self.add_command(build)
@@ -62,32 +64,32 @@ async def build(ctx):
 			if len(l) == 0:
 				#print("Contentless message.")
 				continue
-			user = ctx.bot.db.users.find_one({"user_id":msg.author.id})
+			user = await ctx.bot.db.users.find_one({"user_id":msg.author.id})
 			if user is None:
 				#print("Spawning a user for {}.".format(msg.author.name))
-				ctx.bot.db.users.insert_one({
+				await ctx.bot.db.users.insert_one({
 					"user_id": msg.author.id,
 					"total": 1,
 					"bom": []
 				})
 			else:
 				#print("Updating a user's total.")
-				ctx.bot.db.users.update_one(
+				await ctx.bot.db.users.update_one(
 					{"user_id": msg.author.id},
 					{"$inc": {"total": 1}}
 				)
-			bom_entry = ctx.bot.db.users.find_one({
+			bom_entry = await ctx.bot.db.users.find_one({
 				"user_id": msg.author.id,
 				"bom.word": l[0]})
 			if bom_entry is None:
 				#print("{} has never started a message before!".format(l[0]))
-				ctx.bot.db.users.update_one(
+				await ctx.bot.db.users.update_one(
 					{"user_id": msg.author.id},
 					{"$addToSet": {"bom": {"word": l[0], "freq": 1}}}
 				)
 			else:
 				#print("Bumping the count of {}".format(l[0]))
-				ctx.bot.db.users.update_one(
+				await ctx.bot.db.users.update_one(
 					{
 					"user_id": msg.author.id,
 					"bom.word": l[0]
@@ -95,13 +97,13 @@ async def build(ctx):
 					{"$inc": {"bom.$.freq": 1}}
 				)
 			for index, word in enumerate(l):
-				word_entry = ctx.bot.db.words.find_one({
+				word_entry = await ctx.bot.db.words.find_one({
 					"user_id": msg.author.id,
 					"word": word
 				})
 				if word_entry is None:
 					#print("{} has never been used!".format(word))
-					ctx.bot.db.words.insert_one({
+					await ctx.bot.db.words.insert_one({
 						"user_id": msg.author.id,
 						"word": word,
 						"total": 1,
@@ -110,7 +112,7 @@ async def build(ctx):
 					})
 				else:
 					#print("Bumping {}".format(word))
-					ctx.bot.db.words.update_one({
+					await ctx.bot.db.words.update_one({
 						"user_id": msg.author.id,
 						"word": word
 						},
@@ -118,21 +120,21 @@ async def build(ctx):
 					)
 				if index == len(l)-1:
 					#print("Bumping {}'s EOM count.".format(word))
-					ctx.bot.db.words.update_one({
+					await ctx.bot.db.words.update_one({
 						"user_id": msg.author.id,
 						"word": word
 						},
 						{"$inc": {"eom_count":1}}
 					)
 				else:
-					next_entry = ctx.bot.db.words.find_one({
+					next_entry = await ctx.bot.db.words.find_one({
 						"user_id": msg.author.id,
 						"word": word,
 						"next.word": l[index+1]
 						})
 					if next_entry is None:
 						#print("Adding {} to {}'s NEXT.".format(l[index+1],word))
-						ctx.bot.db.words.update_one({
+						await ctx.bot.db.words.update_one({
 							"user_id": msg.author.id,
 							"word": word
 							},
@@ -140,7 +142,7 @@ async def build(ctx):
 						)
 					else:
 						#print("Bumping {} in {}'s NEXT.".format(l[index+1],word))
-						ctx.bot.db.words.update_one({
+						await ctx.bot.db.words.update_one({
 							"user_id": msg.author.id,
 							"word": word,
 							"next.word": l[index+1]
@@ -170,14 +172,14 @@ def markov_word(l, total):
 
 @commands.command()
 async def speak(ctx, member : discord.Member):
-	user = ctx.bot.db.users.find_one({"user_id": member.id})
+	user = await ctx.bot.db.users.find_one({"user_id": member.id})
 	if user is None:
 		await ctx.send("AAAAAAAAAA")
 		return
 	this_bom_word = markov_word(user['bom'],user['total'])
 	#this_bom = random.choices(bom_words, weights=bom_freqs)
 	msg = this_bom_word
-	current_word = ctx.bot.db.words.find_one({
+	current_word = await ctx.bot.db.words.find_one({
 		"user_id": member.id,
 		"word": this_bom_word
 		})
@@ -194,7 +196,7 @@ async def speak(ctx, member : discord.Member):
 		if next_word is None:
 			break
 		msg += " " + next_word
-		current_word = ctx.bot.db.words.find_one({
+		current_word = await ctx.bot.db.words.find_one({
 		"user_id": member.id,
 		"word": next_word
 		})
