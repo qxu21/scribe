@@ -7,16 +7,15 @@ import asyncio
 import random
 
 #TODO:
-#MAKE ASYNC
-#ANTIDEADNAME
-#REMOVE PINGS
+#MAYBE REGEN BORING PHRASES
+#DB IDENTIFIED AS BOTTLENECK
 
 class Wumpus(commands.Bot):
     #subclassing Bot so i can store my own properites
     #ripped from altarrel
     def __init__(self, **kwargs):
         super().__init__(
-            command_prefix="wumpus "
+            command_prefix="w"
         )
         self.db_client = AsyncIOMotorClient()
         self.db = self.db_client.wumpus
@@ -24,13 +23,13 @@ class Wumpus(commands.Bot):
         self.add_command(build)
         self.add_command(speak)
 
-    async def on_ready(self):
+    #async def on_ready(self):
         # maybe do things
-        pass
+    #    pass
 
-    async def on_guild_join(self, guild):
+    #async def on_guild_join(self, guild):
         # maybe do things
-        pass
+    #    pass
 
     #not gonna bother axing deleted channels, shouldn't be too bad
 
@@ -54,14 +53,7 @@ async def build(ctx):
 		print("Working on {}.".format(channel.name))
 		async for msg in channel.history(limit=None):
 			print(msg.created_at.isoformat())
-			l = msg.content.split()
-			for m in l:
-				if m == "derek":
-					print("deadnames murdered++")
-					m = "maya"
-				elif m == "Derek":
-					print("deadnames murdered++")
-					m = "Maya"
+			l = msg.clean_content.replace("derek","maya").replace("Derek","Maya").split()
 			if len(l) == 0:
 				#print("Contentless message.")
 				continue
@@ -70,22 +62,30 @@ async def build(ctx):
 				#print("Spawning a user for {}.".format(msg.author.name))
 				await ctx.bot.db.users.insert_one({
 					"user_id": msg.author.id,
+					"guild_id": msg.guild.id,
 					"total": 1,
 					"bom": []
 				})
 			else:
 				#print("Updating a user's total.")
 				await ctx.bot.db.users.update_one(
-					{"user_id": msg.author.id},
+					{
+					"user_id": msg.author.id,
+					"guild_id": msg.guild.id
+					},
 					{"$inc": {"total": 1}}
 				)
 			bom_entry = await ctx.bot.db.users.find_one({
 				"user_id": msg.author.id,
+				"guild_id": msg.guild.id,
 				"bom.word": l[0]})
 			if bom_entry is None:
 				#print("{} has never started a message before!".format(l[0]))
 				await ctx.bot.db.users.update_one(
-					{"user_id": msg.author.id},
+					{
+					"user_id": msg.author.id,
+					"guild_id": msg.guild.id
+					},
 					{"$addToSet": {"bom": {"word": l[0], "freq": 1}}}
 				)
 			else:
@@ -93,6 +93,7 @@ async def build(ctx):
 				await ctx.bot.db.users.update_one(
 					{
 					"user_id": msg.author.id,
+					"guild_id": msg.guild.id,
 					"bom.word": l[0]
 					},
 					{"$inc": {"bom.$.freq": 1}}
@@ -100,12 +101,14 @@ async def build(ctx):
 			for index, word in enumerate(l):
 				word_entry = await ctx.bot.db.words.find_one({
 					"user_id": msg.author.id,
+					"guild_id": msg.guild.id,
 					"word": word
 				})
 				if word_entry is None:
 					#print("{} has never been used!".format(word))
 					await ctx.bot.db.words.insert_one({
 						"user_id": msg.author.id,
+						"guild_id": msg.guild.id,
 						"word": word,
 						"total": 1,
 						"next": [],
@@ -115,6 +118,7 @@ async def build(ctx):
 					#print("Bumping {}".format(word))
 					await ctx.bot.db.words.update_one({
 						"user_id": msg.author.id,
+						"guild_id": msg.guild.id,
 						"word": word
 						},
 						{"$inc": {"total":1}}
@@ -123,6 +127,7 @@ async def build(ctx):
 					#print("Bumping {}'s EOM count.".format(word))
 					await ctx.bot.db.words.update_one({
 						"user_id": msg.author.id,
+						"guild_id": msg.guild.id,
 						"word": word
 						},
 						{"$inc": {"eom_count":1}}
@@ -130,6 +135,7 @@ async def build(ctx):
 				else:
 					next_entry = await ctx.bot.db.words.find_one({
 						"user_id": msg.author.id,
+						"guild_id": msg.guild.id,
 						"word": word,
 						"next.word": l[index+1]
 						})
@@ -137,6 +143,7 @@ async def build(ctx):
 						#print("Adding {} to {}'s NEXT.".format(l[index+1],word))
 						await ctx.bot.db.words.update_one({
 							"user_id": msg.author.id,
+							"guild_id": msg.guild.id,
 							"word": word
 							},
 							{"$addToSet": {"next": {"word": l[index+1], "freq": 1}}}
@@ -145,6 +152,7 @@ async def build(ctx):
 						#print("Bumping {} in {}'s NEXT.".format(l[index+1],word))
 						await ctx.bot.db.words.update_one({
 							"user_id": msg.author.id,
+							"guild_id": msg.guild.id,
 							"word": word,
 							"next.word": l[index+1]
 						},
@@ -153,22 +161,22 @@ async def build(ctx):
 
 def markov_word(l, total):
 	"""expects a list of {word,freq} in l"""
-	print(l)
+	#print(l)
 	words = []
 	freqs = []
 	for o in l:
-		print("{};{}".format(o['word'],o['freq']))
+		#print("{};{}".format(o['word'],o['freq']))
 		words.append(o['word'])
 		freqs.append(o['freq']/total)
 	n = random.random()
 	c = 0
 	for f in freqs:
-		print("{}:{}".format(n,f))
+		#print("{}:{}".format(n,f))
 		n -= f
 		if n <= 0:
 			break
 		c += 1
-	print(words[c])
+	#print(words[c])
 	return words[c]
 
 @commands.command()
