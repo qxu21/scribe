@@ -46,117 +46,52 @@ async def run(token):
 @commands.is_owner()
 async def build(ctx):
 	#MOVE THIS TO ONGUILDJOIN WHEN DONE
+	#important: each member doesn't need guildid in the mem db, but does need it attached in mongo
+	#the mem db will be denormalized (embedded) to decrease in-memory footprint of the db
+	#while the mongo db is normalized (flattened) so as little disk data is read as possible
+	mem_db = {}
 	for channel in ctx.guild.text_channels:
-	#for channel in (ctx.guild.get_channel(330362198960373760),):
 		if not channel.permissions_for(ctx.guild.get_member(ctx.bot.user.id)).read_messages:
 			continue
 		print("Working on {}.".format(channel.name))
 		async for msg in channel.history(limit=None):
 			print(msg.created_at.isoformat())
+			user_id = msg.author.id
 			l = msg.clean_content.replace("derek","maya").replace("Derek","Maya").split()
 			if len(l) == 0:
-				#print("Contentless message.")
 				continue
-			user = await ctx.bot.db.users.find_one({"user_id":msg.author.id})
-			if user is None:
-				#print("Spawning a user for {}.".format(msg.author.name))
-				await ctx.bot.db.users.insert_one({
-					"user_id": msg.author.id,
-					"guild_id": msg.guild.id,
+			if user_id not in mem_db:
+				mem_db[user_id] = {
 					"total": 1,
-					"bom": []
-				})
+					"bom": {},
+					"words": {}
+				}
 			else:
-				#print("Updating a user's total.")
-				await ctx.bot.db.users.update_one(
-					{
-					"user_id": msg.author.id,
-					"guild_id": msg.guild.id
-					},
-					{"$inc": {"total": 1}}
-				)
-			bom_entry = await ctx.bot.db.users.find_one({
-				"user_id": msg.author.id,
-				"guild_id": msg.guild.id,
-				"bom.word": l[0]})
-			if bom_entry is None:
-				#print("{} has never started a message before!".format(l[0]))
-				await ctx.bot.db.users.update_one(
-					{
-					"user_id": msg.author.id,
-					"guild_id": msg.guild.id
-					},
-					{"$addToSet": {"bom": {"word": l[0], "freq": 1}}}
-				)
+				mem_db[user_id]["total"] += 1
+			if l[0] not in mem_db[user_id][bom]:
+				mem_db[user_id]["bom"][l[0]] = 1
 			else:
-				#print("Bumping the count of {}".format(l[0]))
-				await ctx.bot.db.users.update_one(
-					{
-					"user_id": msg.author.id,
-					"guild_id": msg.guild.id,
-					"bom.word": l[0]
-					},
-					{"$inc": {"bom.$.freq": 1}}
-				)
+				mem_db[user_id]["bom"][l[0]] += 1
 			for index, word in enumerate(l):
-				word_entry = await ctx.bot.db.words.find_one({
-					"user_id": msg.author.id,
-					"guild_id": msg.guild.id,
-					"word": word
-				})
-				if word_entry is None:
-					#print("{} has never been used!".format(word))
-					await ctx.bot.db.words.insert_one({
-						"user_id": msg.author.id,
-						"guild_id": msg.guild.id,
-						"word": word,
+				if word not in mem_db[user_id]["words"]:
+					mem_db[user_id]["words"][word] = {
 						"total": 1,
-						"next": [],
+						"next": {},
 						"eom_count": 0
-					})
+					}
 				else:
-					#print("Bumping {}".format(word))
-					await ctx.bot.db.words.update_one({
-						"user_id": msg.author.id,
-						"guild_id": msg.guild.id,
-						"word": word
-						},
-						{"$inc": {"total":1}}
-					)
+					mem_db[user_id]["words"][word]["total"] += 1
 				if index == len(l)-1:
-					#print("Bumping {}'s EOM count.".format(word))
-					await ctx.bot.db.words.update_one({
-						"user_id": msg.author.id,
-						"guild_id": msg.guild.id,
-						"word": word
-						},
-						{"$inc": {"eom_count":1}}
-					)
+					mem_db[user_id]["words"][word]["eom_count"] += 1
 				else:
-					next_entry = await ctx.bot.db.words.find_one({
-						"user_id": msg.author.id,
-						"guild_id": msg.guild.id,
-						"word": word,
-						"next.word": l[index+1]
-						})
-					if next_entry is None:
-						#print("Adding {} to {}'s NEXT.".format(l[index+1],word))
-						await ctx.bot.db.words.update_one({
-							"user_id": msg.author.id,
-							"guild_id": msg.guild.id,
-							"word": word
-							},
-							{"$addToSet": {"next": {"word": l[index+1], "freq": 1}}}
-						)
+					if l[index+1] not in mem_db[user_id]["words"][word]["next"]:
+						mem_db[user_id]["words"][word]["next"][l[index+1]] = 1
 					else:
-						#print("Bumping {} in {}'s NEXT.".format(l[index+1],word))
-						await ctx.bot.db.words.update_one({
-							"user_id": msg.author.id,
-							"guild_id": msg.guild.id,
-							"word": word,
-							"next.word": l[index+1]
-						},
-						{"$inc": {"next.$.freq":1}})
+						mem_db[user_id]["words"][word]["next"][l[index+1]] += 1
+	for user in mem_db:
+		ctx.bot.db.users.insert_one({
+			
+			})
 	await ctx.send("Prepared the database.")
 
 def markov_word(l, total):
