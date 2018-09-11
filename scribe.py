@@ -17,48 +17,16 @@ import json
 # TODO:
 # 2. reactions?
 # 4. pincaps
-# 7. pin actual pins
-# allow a command to rollback most recent pin
-# tell to use devmode
+# 7. pin actual pins - ON HOLD
 # allow messages that start with mentions
 # add !pun
-# serve up .txts with apache or flask using some sort of authenticator or randomizer
 # eventually !pinfile will return urls instead of files
 # add logging per documentation
 # make emojis just be names, also mentions
 # !aidanpinfile that does blink tags
 # !babelpinfile
 # unify !quote and !pinpage it
-# condense !help or DM it or web
-
-#TODO NEXT UPDATE:
-# guild passwords
-# cronjob to reset guild passwords every so often
-# 
-
-# KNOWN ISSUES
-# in parsed (pre-json messages) attachment urls are incorrectly placed into content as well as the attachments array
-
-#API HERE - API ON HOLD
-
-"""async def handle(request):
-    if request.content_type != "application/json":
-        return web.Response(status=415) #correct status?
-    try:
-        request.json()
-
-    return web.json_response(j)
-
-async def start_api():
-    app = web.Application()
-    app.add_routes([web.get('/api', handle)])
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, 'localhost', 8080)
-    await site.start()
-    #runner.cleanup() terminates - use try:? idk man"""
-
-#SCRIBE BOT BELOW THIS LINE
+# fix \n => <br /> in webpage
 
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
@@ -131,7 +99,7 @@ async def run(token, credentials):
         await db.close()
         await scribe.logout()
 
-async def find_message(msg, channel, count=0, silent=False, raw_string=False):
+async def find_message(msg, channel, count=0, silent=False, raw_string=False, after_time=None):
     # msg is either a string to search for *or* a message id *or* a list of words
     # *or* an int of messages to go forward/back from UPDATE: maybe don't do this
     # was i tired when i wrote this???
@@ -159,7 +127,7 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False):
         except discord.NotFound:
             search = str(search)
     # id msgs were handled above, so here we have a string that needs to be searched
-    ptl_msg = await channel.history().find(
+    ptl_msg = await channel.history(after=after_time).find(
             lambda m: (m.content.startswith(search) or m.clean_content.startswith(search)) and m.channel == channel)
     #???
     #if ptl_msg is None:
@@ -290,15 +258,17 @@ async def quote(ctx, *, msg):
     if start_context is None:
         await ctx.send("Start message not found.")
         return
-    end_context = await find_message(spl[1], ctx.channel)
+    end_context = await find_message(spl[1], ctx.channel, after=start_context.created_at)
     if end_context is None:
         await ctx.send("End message not found.")
         return
-    if end_context.created_at < start_context.created_at:
+    #if end_context.created_at < start_context.created_at:
+    # this section caused unintended behavior and is now beaned
+    # rejoice
         # TOASK: abort or silently swap?
-        tmp = end_context
-        end_context = start_context
-        start_context = tmp
+    #    tmp = end_context
+    #    end_context = start_context
+    #    start_context = tmp
     #pin_string = ""
     # not gonna mess with this eldritch cache
     #for m in ctx.bot._connection._messages:
@@ -480,6 +450,10 @@ async def help(ctx):
 @commands.command()
 async def invite(ctx):
     await ctx.send("Invite Scribe to your server! https://discordapp.com/api/oauth2/authorize?client_id=413082884912578560&permissions=0&scope=bot")
+
+#@commands.command()
+#async def evaluate(ctx, *, arg):
+
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(run(config.token, config.dbc))
