@@ -99,7 +99,7 @@ async def run(token, credentials):
         await db.close()
         await scribe.logout()
 
-async def find_message(msg, channel, count=0, silent=False, raw_string=False):
+async def find_message(msg, channel, count=0, silent=False, raw_string=False, after_time=None):
     # msg is either a string to search for *or* a message id *or* a list of words
     # *or* an int of messages to go forward/back from UPDATE: maybe don't do this
     # was i tired when i wrote this???
@@ -127,7 +127,7 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False):
         except discord.NotFound:
             search = str(search)
     # id msgs were handled above, so here we have a string that needs to be searched
-    ptl_msg = await channel.history().find(
+    ptl_msg = await channel.history(after=after_time).find(
             lambda m: (m.content.startswith(search) or m.clean_content.startswith(search)) and m.channel == channel)
     #???
     #if ptl_msg is None:
@@ -258,15 +258,17 @@ async def quote(ctx, *, msg):
     if start_context is None:
         await ctx.send("Start message not found.")
         return
-    end_context = await find_message(spl[1], ctx.channel)
+    end_context = await find_message(spl[1], ctx.channel, after=start_context.created_at)
     if end_context is None:
         await ctx.send("End message not found.")
         return
-    if end_context.created_at < start_context.created_at:
+    #if end_context.created_at < start_context.created_at:
+    # this section caused unintended behavior and is now beaned
+    # rejoice
         # TOASK: abort or silently swap?
-        tmp = end_context
-        end_context = start_context
-        start_context = tmp
+    #    tmp = end_context
+    #    end_context = start_context
+    #    start_context = tmp
     #pin_string = ""
     # not gonna mess with this eldritch cache
     #for m in ctx.bot._connection._messages:
