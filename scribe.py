@@ -99,7 +99,7 @@ async def run(token, credentials):
         await db.close()
         await scribe.logout()
 
-async def find_message(msg, channel, count=0, silent=False, raw_string=False, after_time=None):
+async def find_message(msg, channel, count=0, silent=False, raw_string=False, after=None):
     # msg is either a string to search for *or* a message id *or* a list of words
     # *or* an int of messages to go forward/back from UPDATE: maybe don't do this
     # was i tired when i wrote this???
@@ -127,7 +127,7 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False, af
         except discord.NotFound:
             search = str(search)
     # id msgs were handled above, so here we have a string that needs to be searched
-    ptl_msg = await channel.history(after=after_time).find(
+    ptl_msg = await channel.history(after=after).find(
             lambda m: (m.content.startswith(search) or m.clean_content.startswith(search)) and m.channel == channel)
     #???
     #if ptl_msg is None:
@@ -148,7 +148,7 @@ def msg_to_json(m, isquote=False, pinner=None):
             "content": m.clean_content,
             "attachments": [a.url for a in m.attachments]}
     if not isquote:
-        d["pinner_id"] = pinner.id if pinner is not None else None
+        d["pinner_id"] = pinner.id if pinner is not None else None #maybe used dict.extend()
         d["pin_timestamp"] = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
         d["is_quote"] = False
     return d
