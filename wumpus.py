@@ -199,7 +199,7 @@ async def dump_db(db,mem_db,guild_id):
 					"word": word_word
 					},
 					{
-					"$set": {"next":db_next}
+					"$set": {"next":db_next},
 					"$inc": {"total":word_obj["total"],"eom_count":word_obj["eom_count"]},
 					}
 				)
