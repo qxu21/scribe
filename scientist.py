@@ -87,6 +87,7 @@ async def invite(ctx, members: commands.Greedy[discord.Member]):
 
 @commands.command()
 async def close(ctx):
+    ctx.bot.close_rp_callback.cancel()
     await close_rp(ctx.bot.get_guild(292149782619750400), ctx.bot.get_channel(513959986506760202), True)
 
 async def close_rp_timeout(guild, channel):
