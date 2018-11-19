@@ -90,7 +90,7 @@ async def close(ctx):
     await close_rp(ctx.bot.get_guild(292149782619750400), ctx.bot.get_channel(513959986506760202), True)
 
 async def close_rp_timeout(guild, channel):
-    await asyncio.sleep(10)
+    await asyncio.sleep(600)
     await close_rp(guild, channel, False)
 
 async def close_rp(guild, channel, closed):
