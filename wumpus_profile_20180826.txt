@@ -1,0 +1,116 @@
+Timer unit: 1e-06 s
+
+Total time: 0.466962 s
+File: wumpus.py
+Function: build at line 48
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    48                                           @commands.command()
+    49                                           @commands.is_owner()
+    50                                           @profile
+    51                                           async def build(ctx):
+    52                                           	#MOVE THIS TO ONGUILDJOIN WHEN DONE
+    53         9        222.0     24.7      0.0  	for channel in ctx.guild.text_channels:
+    54                                           	#for channel in (ctx.guild.get_channel(330362198960373760),):
+    55         8        865.0    108.1      0.2  		if not channel.permissions_for(ctx.guild.get_member(ctx.bot.user.id)).read_messages:
+    56         7         13.0      1.9      0.0  			continue
+    57         1        167.0    167.0      0.0  		print("Working on {}.".format(channel.name))
+    58        26       4179.0    160.7      0.9  		async for msg in channel.history(limit=None):
+    59        25       2250.0     90.0      0.5  			print(msg.created_at.isoformat())
+    60        25        386.0     15.4      0.1  			l = msg.content.split()
+    61       362        683.0      1.9      0.1  			for m in l:
+    62       337        653.0      1.9      0.1  				if m == "derek":
+    63                                           					print("deadnames murdered++")
+    64                                           					m = "maya"
+    65       337        621.0      1.8      0.1  				elif m == "Derek":
+    66                                           					print("deadnames murdered++")
+    67                                           					m = "Maya"
+    68        25         78.0      3.1      0.0  			if len(l) == 0:
+    69                                           				#print("Contentless message.")
+    70                                           				continue
+    71        25      10486.0    419.4      2.2  			user = await ctx.bot.db.users.find_one({"user_id":msg.author.id})
+    72        25         78.0      3.1      0.0  			if user is None:
+    73                                           				#print("Spawning a user for {}.".format(msg.author.name))
+    74                                           				await ctx.bot.db.users.insert_one({
+    75                                           					"user_id": msg.author.id,
+    76                                           					"total": 1,
+    77                                           					"bom": []
+    78                                           				})
+    79                                           			else:
+    80                                           				#print("Updating a user's total.")
+    81        25       2893.0    115.7      0.6  				await ctx.bot.db.users.update_one(
+    82        25        171.0      6.8      0.0  					{"user_id": msg.author.id},
+    83        25       5257.0    210.3      1.1  					{"$inc": {"total": 1}}
+    84                                           				)
+    85        25       2893.0    115.7      0.6  			bom_entry = await ctx.bot.db.users.find_one({
+    86        25        166.0      6.6      0.0  				"user_id": msg.author.id,
+    87        25       5148.0    205.9      1.1  				"bom.word": l[0]})
+    88        25         80.0      3.2      0.0  			if bom_entry is None:
+    89                                           				#print("{} has never started a message before!".format(l[0]))
+    90                                           				await ctx.bot.db.users.update_one(
+    91                                           					{"user_id": msg.author.id},
+    92                                           					{"$addToSet": {"bom": {"word": l[0], "freq": 1}}}
+    93                                           				)
+    94                                           			else:
+    95                                           				#print("Bumping the count of {}".format(l[0]))
+    96        25       2725.0    109.0      0.6  				await ctx.bot.db.users.update_one(
+    97                                           					{
+    98        25        151.0      6.0      0.0  					"user_id": msg.author.id,
+    99        25         62.0      2.5      0.0  					"bom.word": l[0]
+   100                                           					},
+   101        25       5564.0    222.6      1.2  					{"$inc": {"bom.$.freq": 1}}
+   102                                           				)
+   103       362       1749.0      4.8      0.4  			for index, word in enumerate(l):
+   104       337      41938.0    124.4      9.0  				word_entry = await ctx.bot.db.words.find_one({
+   105       337       2478.0      7.4      0.5  					"user_id": msg.author.id,
+   106       337      60101.0    178.3     12.9  					"word": word
+   107                                           				})
+   108       337       1166.0      3.5      0.2  				if word_entry is None:
+   109                                           					#print("{} has never been used!".format(word))
+   110                                           					await ctx.bot.db.words.insert_one({
+   111                                           						"user_id": msg.author.id,
+   112                                           						"word": word,
+   113                                           						"total": 1,
+   114                                           						"next": [],
+   115                                           						"eom_count": 0
+   116                                           					})
+   117                                           				else:
+   118                                           					#print("Bumping {}".format(word))
+   119       337      41773.0    124.0      8.9  					await ctx.bot.db.words.update_one({
+   120       337       2409.0      7.1      0.5  						"user_id": msg.author.id,
+   121       337        845.0      2.5      0.2  						"word": word
+   122                                           						},
+   123       337      59720.0    177.2     12.8  						{"$inc": {"total":1}}
+   124                                           					)
+   125       337       1603.0      4.8      0.3  				if index == len(l)-1:
+   126                                           					#print("Bumping {}'s EOM count.".format(word))
+   127        25       2643.0    105.7      0.6  					await ctx.bot.db.words.update_one({
+   128        25        158.0      6.3      0.0  						"user_id": msg.author.id,
+   129        25         55.0      2.2      0.0  						"word": word
+   130                                           						},
+   131        25       4423.0    176.9      0.9  						{"$inc": {"eom_count":1}}
+   132                                           					)
+   133                                           				else:
+   134       312      39248.0    125.8      8.4  					next_entry = await ctx.bot.db.words.find_one({
+   135       312       2321.0      7.4      0.5  						"user_id": msg.author.id,
+   136       312        806.0      2.6      0.2  						"word": word,
+   137       312      56045.0    179.6     12.0  						"next.word": l[index+1]
+   138                                           						})
+   139       312       1149.0      3.7      0.2  					if next_entry is None:
+   140                                           						#print("Adding {} to {}'s NEXT.".format(l[index+1],word))
+   141                                           						await ctx.bot.db.words.update_one({
+   142                                           							"user_id": msg.author.id,
+   143                                           							"word": word
+   144                                           							},
+   145                                           							{"$addToSet": {"next": {"word": l[index+1], "freq": 1}}}
+   146                                           						)
+   147                                           					else:
+   148                                           						#print("Bumping {} in {}'s NEXT.".format(l[index+1],word))
+   149       312      39715.0    127.3      8.5  						await ctx.bot.db.words.update_one({
+   150       312       2225.0      7.1      0.5  							"user_id": msg.author.id,
+   151       312        648.0      2.1      0.1  							"word": word,
+   152       312       1124.0      3.6      0.2  							"next.word": l[index+1]
+   153                                           						},
+   154       312      53706.0    172.1     11.5  						{"$inc": {"next.$.freq":1}})
+   155         1       3123.0   3123.0      0.7  	await ctx.send("Prepared the database.")
