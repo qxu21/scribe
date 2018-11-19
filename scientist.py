@@ -26,7 +26,7 @@ class Scientist(commands.Bot):
         self.add_command(rolelist)
 
     async def on_message(self, msg):
-        if msg.channel.id == 513959986506760202 and msg.author.id != 513989250283208714 and msg.guild.get_role(lowner_role_id).members == [] and not msg.content.startswith("?location"):
+        if msg.channel.id == 513959986506760202 and msg.author.id not in (513989250283208714, 209876515192569856) and msg.guild.get_role(lowner_role_id).members == [] and not msg.content.startswith("?location"):
             await msg.author.send("Please use the ?location command followed by a location description before sending messages in #location.")
             await msg.delete()
             return
