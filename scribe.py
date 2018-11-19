@@ -27,6 +27,7 @@ import json
 # !babelpinfile
 # unify !quote and !pinpage it
 # fix \n => <br /> in webpage
+# maybe !quote <user> to quote a specific user only
 
 class Scribe(commands.Bot):
     #subclassing Bot so i can store my own properites
