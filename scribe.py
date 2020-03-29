@@ -123,7 +123,7 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False, af
     # haha nvm
     if type(search) == int:
         try:
-            message = await channel.get_message(search)
+            message = await channel.fetch_message(search)
             return message
         except discord.NotFound:
             search = str(search)
