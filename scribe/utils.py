@@ -4,18 +4,24 @@ import datetime
 import os
 import json
 
+
 class UnionChannelAll(commands.TextChannelConverter):
     async def convert(self, ctx, arg):
         if arg == "all":
-            for c in ctx.guild.text_channels:
-                if c.name == "all":
-                    await ctx.send("This server has a channel named #all. If you wanted to request the serverwide pinfile, try !omnipinfile instead.")
-                    return await super().convert(ctx, arg)
+            if any([c.name == "all" for c in ctx.guild.text_channels]):
+                await ctx.send(
+                    """This server has a channel named #all. \
+                    If you wanted to request the serverwide pinfile, try !omnipinfile instead."""
+                )
+                return await super().convert(ctx, arg)
             return "all"
         else:
             return await super().convert(ctx, arg)
 
-async def find_message(msg, channel, count=0, silent=False, raw_string=False, after=None):
+
+async def find_message(
+    msg, channel, count=0, silent=False, raw_string=False, after=None
+):
     # msg is either a string to search for *or* a message id *or* a list of words
     # *or* an int of messages to go forward/back from UPDATE: maybe don't do this
     # was i tired when i wrote this???
@@ -40,37 +46,48 @@ async def find_message(msg, channel, count=0, silent=False, raw_string=False, af
             search = str(search)
     # id msgs were handled above, so here we have a string that needs to be searched
     ptl_msg = await channel.history(after=after).find(
-            lambda m: (m.content.startswith(search) or m.clean_content.startswith(search)) and m.channel == channel)
-    #???
-    #if ptl_msg is None:
+        lambda m: (m.content.startswith(search) or m.clean_content.startswith(search))
+        and m.channel == channel
+    )
+    # ???
+    # if ptl_msg is None:
     #    return None
 
     # we found a message
     return ptl_msg
 
+
 def msg_to_json(m, isquote=False, pinner=None):
     d = {
-            "id": m.id,
-            "timestamp": m.created_at.replace(microsecond=0).isoformat(),
-            "edited_timestamp":
-                (m.edited_at.replace(microsecond=0).isoformat()
-                if m.edited_at is not None else None),
-            "author_name": m.author.name,
-            "author_discrim": m.author.discriminator,
-            "content": m.clean_content,
-            "attachments": [a.url for a in m.attachments]}
+        "id": m.id,
+        "timestamp": m.created_at.replace(microsecond=0).isoformat(),
+        "edited_timestamp": (
+            m.edited_at.replace(microsecond=0).isoformat()
+            if m.edited_at is not None
+            else None
+        ),
+        "author_name": m.author.name,
+        "author_discrim": m.author.discriminator,
+        "content": m.clean_content,
+        "attachments": [a.url for a in m.attachments],
+    }
     if not isquote:
-        d["pinner_id"] = pinner.id if pinner is not None else None #maybe used dict.extend()
-        d["pin_timestamp"] = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
+        d["pinner_id"] = (
+            pinner.id if pinner is not None else None
+        )  # maybe used dict.extend()
+        d["pin_timestamp"] = (
+            datetime.datetime.utcnow().replace(microsecond=0).isoformat()
+        )
         d["is_quote"] = False
     return d
+
 
 def pin_json(channel, j):
     # OPTIMIZATION POTENTIAL: make this async
     # ripped from pin_text and modified beyond recognition kinda
     dn = "pins/{}".format(channel.guild.id)
     fn = "{}.json".format(channel.id)
-    f = os.path.join(dn,fn)
+    f = os.path.join(dn, fn)
     if not os.path.isdir(dn):
         os.makedirs(dn)
     try:
@@ -90,11 +107,12 @@ def pin_json(channel, j):
     with open(f, "w") as fo:
         json.dump(jobj, fo)
 
+
 def format_for_feedback(s):
     # if i had figured out to chain replace calls earlier
     if s == "":
         return "[no message content]"
-    s = s.replace('`','').replace('\n', ' ')
+    s = s.replace("`", "").replace("\n", " ")
     s = s.strip()
     if len(s) <= 20:
         return s
