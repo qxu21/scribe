@@ -101,14 +101,40 @@ class Scribe(commands.Bot):
 async def run(token, credentials):
     db = await asyncpg.create_pool(**credentials)
 
-    # await db.execute(
-    #   "CREATE TABLE IF NOT EXISTS channels(id bigint PRIMARY KEY, userid bigint);")
+    # autoincrementing ID for PINS
     await db.execute(
-        "CREATE TABLE IF NOT EXISTS names(id bigint PRIMARY KEY, name varchar(102));"
+        """CREATE TABLE IF NOT EXISTS names(
+            id bigint PRIMARY KEY,
+            name varchar(102));"""
     )
     await db.execute(
-        "CREATE TABLE IF NOT EXISTS guilds(id bigint PRIMARY KEY, name varchar(102), pwd varchar(30));"
+        """CREATE TABLE IF NOT EXISTS guilds(
+            id bigint PRIMARY KEY,
+            name varchar(102),
+            pwd varchar(30));"""
     )
+    # dates - YYYY-MM-DDTHH:MM:SS
+    # precision 0 - no fractional seconds
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS pins(
+            id integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            guild bigint,
+            channel bigint,
+            created_at timestamp(0) WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            pinner bigint);
+            """
+    )
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS messages(
+            id bigint PRIMARY KEY,
+            author bigint,
+            created_at timestamp(0) without time zone,
+            edited_at timestamp(0) without time zone,
+            content text,
+            reply bigint REFERENCES messages,
+            pin integer REFERENCES pins);"""
+    )
+    # TODO: possible attachment url table?
 
     scribe = Scribe(db=db)
     # scribe.loop.create_task(start_api()) #hope this works - API ON HOLD

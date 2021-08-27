@@ -19,9 +19,7 @@ class UnionChannelAll(commands.TextChannelConverter):
             return await super().convert(ctx, arg)
 
 
-async def find_message(
-    msg, channel, count=0, silent=False, raw_string=False, after=None
-):
+async def find_message(msg, channel, after=None):
     # msg is either a string to search for *or* a message id *or* a list of words
     # *or* an int of messages to go forward/back from UPDATE: maybe don't do this
     # was i tired when i wrote this???
@@ -35,9 +33,7 @@ async def find_message(
         search = msg
     else:
         raise TypeError
-    # this feels sinful
-    # y e a h i'm burning this
-    # haha nvm
+
     if type(search) == int:
         try:
             message = await channel.fetch_message(search)
@@ -49,11 +45,6 @@ async def find_message(
         lambda m: (m.content.startswith(search) or m.clean_content.startswith(search))
         and m.channel == channel
     )
-    # ???
-    # if ptl_msg is None:
-    #    return None
-
-    # we found a message
     return ptl_msg
 
 
@@ -106,6 +97,36 @@ def pin_json(channel, j):
     jobj.append(j)
     with open(f, "w") as fo:
         json.dump(jobj, fo)
+
+
+async def create_pin(ctx):
+    # will return the ID of the newly created pin
+    return await ctx.bot.db.fetchval(
+        """INSERT INTO pins (guild, channel, pinner)
+        VALUES ($1, $2, $3)
+        RETURNING id;""",
+        ctx.guild.id,
+        ctx.channel.id,
+        ctx.message.author,
+    )
+
+
+async def insert_message(db, message, pin_id):
+    # SPIKE: ATTACHMENTS
+    await db.execute(
+        """
+        INSERT INTO messages
+        (id, author, created_at, edited_at, content, reply, pin)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
+        """,
+        message.id,
+        message.author.id,
+        message.created_at.replace(microsecond=0),
+        (message.edited_at.replace(microsecond=0) if message.edited_at else None),
+        message.clean_content,
+        (message.reference.message_id if message.reference else None),
+        pin_id,
+    )
 
 
 def format_for_feedback(s):
