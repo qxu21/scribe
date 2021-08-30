@@ -107,26 +107,61 @@ async def create_pin(ctx):
         RETURNING id;""",
         ctx.guild.id,
         ctx.channel.id,
-        ctx.message.author,
+        ctx.message.author.id,
     )
 
 
-async def insert_message(db, message, pin_id):
-    # SPIKE: ATTACHMENTS
+async def add_message(db, message, pin_id, is_reply=False):
+    if (
+        message.type == discord.MessageType.default
+        and message.reference
+        and message.reference.message_id
+    ):
+        reply = await message.channel.fetch_message(message.reference.message_id)
+    else:
+        reply = None
+    if reply:
+        # recursively add the reply first, because the reply
+        # may be out of ordinary pin scope
+        await add_message(db, reply, pin_id, is_reply=True)
+
+    # ON CONFLICT DO NOTHING in the event a message is pinned twice
+    # in the same pin
     await db.execute(
         """
         INSERT INTO messages
-        (id, author, created_at, edited_at, content, reply, pin)
-        VALUES ($1, $2, $3, $4, $5, $6, $7);
+        (id, author, created_at, edited_at, content, url, reply)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT DO NOTHING;
         """,
         message.id,
         message.author.id,
         message.created_at.replace(microsecond=0),
         (message.edited_at.replace(microsecond=0) if message.edited_at else None),
         message.clean_content,
-        (message.reference.message_id if message.reference else None),
-        pin_id,
+        message.jump_url,
+        (reply.id if reply else None),
     )
+    await db.execute(
+        """
+        INSERT INTO messages_pins
+        (message, pin, is_reply)
+        VALUES ($1, $2, $3);
+        """,
+        message.id,
+        pin_id,
+        is_reply,
+    )
+    for attachment in message.attachments:
+        await db.execute(
+            """
+            INSERT INTO attachments
+            (message, url)
+            VALUES ($1, $2);
+            """,
+            message.id,
+            attachment.url,
+        )
 
 
 def format_for_feedback(s):

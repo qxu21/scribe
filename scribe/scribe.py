@@ -42,7 +42,7 @@ class Scribe(commands.Bot):
         # beware! it seems old guild with default channels have identical ids between guild and default channel.
         # stay on watch for more edge cases like these
         await self.db.execute(
-            """INSERT INTO names (id, name)
+            """INSERT INTO channels (id, name)
             VALUES ($1, $2)
             ON CONFLICT (id) DO UPDATE
             SET name=$2;""",
@@ -59,7 +59,7 @@ class Scribe(commands.Bot):
             pwd = "".join(
                 [
                     random.choice(string.ascii_letters + string.digits)
-                    for x in range(0, 30)
+                    for _ in range(0, 30)
                 ]
             )
             await self.db.execute(
@@ -101,40 +101,65 @@ class Scribe(commands.Bot):
 async def run(token, credentials):
     db = await asyncpg.create_pool(**credentials)
 
+    await db.execute(
+        """
+        DROP TABLE IF EXISTS channels CASCADE;
+        DROP TABLE IF EXISTS guilds CASCADE;
+        DROP TABLE IF EXISTS pins CASCADE;
+        DROP TABLE IF EXISTS messages CASCADE;
+        DROP TABLE IF EXISTS messages_pins CASCADE;
+        DROP TABLE IF EXISTS attachments CASCADE;"""
+    )
+
     # autoincrementing ID for PINS
     await db.execute(
-        """CREATE TABLE IF NOT EXISTS names(
-            id bigint PRIMARY KEY,
-            name varchar(102));"""
+        """CREATE TABLE IF NOT EXISTS channels(
+            id BIGINT PRIMARY KEY,
+            guild BIGINT,
+            name VARCHAR(102));"""
     )
     await db.execute(
         """CREATE TABLE IF NOT EXISTS guilds(
-            id bigint PRIMARY KEY,
-            name varchar(102),
-            pwd varchar(30));"""
+            id BIGINT PRIMARY KEY,
+            name VARCHAR(102),
+            pwd VARCHAR(30));"""
     )
     # dates - YYYY-MM-DDTHH:MM:SS
     # precision 0 - no fractional seconds
+    # possibly is_single
     await db.execute(
         """CREATE TABLE IF NOT EXISTS pins(
-            id integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-            guild bigint,
-            channel bigint,
-            created_at timestamp(0) WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            pinner bigint);
+            id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            guild BIGINT,
+            channel BIGINT,
+            created_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            pinner BIGINT);
             """
     )
     await db.execute(
         """CREATE TABLE IF NOT EXISTS messages(
-            id bigint PRIMARY KEY,
-            author bigint,
-            created_at timestamp(0) without time zone,
-            edited_at timestamp(0) without time zone,
-            content text,
-            reply bigint REFERENCES messages,
-            pin integer REFERENCES pins);"""
+            id BIGINT PRIMARY KEY,
+            author BIGINT,
+            created_at TIMESTAMP(0) WITHOUT TIME ZONE,
+            edited_at TIMESTAMP(0) WITHOUT TIME ZONE,
+            content TEXT,
+            url TEXT,
+            reply BIGINT REFERENCES messages ON DELETE RESTRICT);"""
     )
-    # TODO: possible attachment url table?
+
+    # TODO: maybe rename is_reply
+
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS messages_pins(
+            message BIGINT REFERENCES messages ON DELETE CASCADE,
+            pin INTEGER REFERENCES pins ON DELETE CASCADE,
+            is_reply BOOL);"""
+    )
+    await db.execute(
+        """CREATE TABLE IF NOT EXISTS attachments(
+            message BIGINT REFERENCES messages ON DELETE CASCADE,
+            url TEXT);"""
+    )
 
     scribe = Scribe(db=db)
     # scribe.loop.create_task(start_api()) #hope this works - API ON HOLD

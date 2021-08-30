@@ -1,26 +1,26 @@
 from .text_pinfile import send_pinfile
 from .utils import (
     find_message,
+    create_pin,
+    add_message,
     format_for_feedback,
-    pin_json,
-    msg_to_json,
     UnionChannelAll,
 )
 from discord.ext import commands
 import datetime
-import os
-import json
 
 
 @commands.command()
-async def pin(ctx, *, msg):
-    pin_msg = await find_message(msg, ctx.channel)
-    if pin_msg is None:
+async def pin(ctx, *, search):
+    message = await find_message(search, ctx.channel)
+    if message is None:
         await ctx.send("Message not found.")
         return
-    pin_json(ctx.channel, msg_to_json(pin_msg, False, ctx.message.author))
+    # pin_json(ctx.channel, msg_to_json(pin_msg, False, ctx.message.author))
+    pin_id = await create_pin(ctx)
+    await add_message(ctx.bot.db, message, pin_id)
     await ctx.send(
-        "The message `{}` has been pinned.".format(format_for_feedback(pin_msg.content))
+        f"The message at `{format_for_feedback(message.clean_content)}` has been pinned."
     )
 
 
@@ -47,77 +47,62 @@ async def quote(ctx, *, msg):
     if end_context is None:
         await ctx.send("End message not found.")
         return
-    h = await ctx.channel.history(
+    quoted_messages = await ctx.channel.history(
         limit=200,
         before=end_context.created_at + datetime.timedelta(microseconds=1000),
         after=start_context.created_at - datetime.timedelta(microseconds=1000),
     ).flatten()
-    ids = [m.id for m in h]
-    if start_context.id not in ids or end_context.id not in ids:
+    quoted_message_ids = [m.id for m in quoted_messages]
+    if (
+        start_context.id not in quoted_message_ids
+        or end_context.id not in quoted_message_ids
+    ):
         await ctx.send(
             "The quote selection is too large. Please limit quotes to 200 messages."
         )
         return
-    pin_json(
-        ctx.channel,
-        {
-            "is_quote": True,
-            "pinner_id": ctx.message.author.id,
-            "pin_timestamp": datetime.datetime.utcnow()
-            .replace(microsecond=0)
-            .isoformat(),
-            "messages": [msg_to_json(m, True) for m in h],
-        },
-    )
+    pin_id = await create_pin(ctx)
+    for message in quoted_messages:
+        await add_message(ctx.bot.db, message, pin_id)
+
     await ctx.send(
-        "The quote starting with `{}` and ending with `{}` has been pinned.".format(
-            format_for_feedback(start_context.clean_content),
-            format_for_feedback(end_context.clean_content),
-        )
+        f"The quote starting at `{format_for_feedback(start_context.clean_content)}`"
+        + f"and ending at `{format_for_feedback(end_context.clean_content)}` has been pinned."
     )
 
 
 @commands.command()
 async def unpin(ctx):
-    # put below into a function at some point
-    dn = "pins/{}".format(ctx.guild.id)
-    fn = "{}.json".format(ctx.channel.id)
-    name = os.path.join(dn, fn)
-    if not os.path.isdir(dn) or not os.path.isfile(name):
-        await ctx.send("No pins have been recorded for this channel.")
+    queryval = await ctx.bot.db.fetchval(
+        """
+        SELECT id FROM pins
+        WHERE channel=$1
+        AND created_at > CURRENT_TIMESTAMP - '20 minutes'
+        AND pinner=$2
+        ORDER BY created_at DESC;
+        """,
+        ctx.channel.id,
+        ctx.author.id,
+    )
+    if queryval is None:
+        await ctx.send("Could not find a pin in this channel eligible for unpinning.")
         return
-    with open(name) as f:
-        j = json.load(f)
-    # so with step size of -1 it flips then counts
-    # doing this backwards to favor unpinning new stuff over old stuff
-    success = False
-    k = j[::-1]
-    for m in k[:5]:
-        if "pinner_id" in m and m["pinner_id"] == ctx.message.author.id:
-            mt = datetime.datetime.strptime(m["pin_timestamp"], "%Y-%m-%dT%H:%M:%S")
-            if datetime.datetime.utcnow() - mt > datetime.timedelta(minutes=10):
-                await ctx.send("The last message you pinned is too old to be unpinned!")
-                return
-            j.remove(m)  # may be horribly inefficient
-            if m["is_quote"]:
-                await ctx.send(
-                    "Unpinned the quote starting with the message that starts with `{}`".format(
-                        format_for_feedback(m["messages"][0]["content"])
-                    )
-                )
-            else:
-                await ctx.send(
-                    "Unpinned the message starting with `{}`.".format(
-                        format_for_feedback(m["content"])
-                    )
-                )
-            success = True
-            break
-    if not success:
-        await ctx.send("You have not pinned one of the last five pins.")
-        return
-    with open(name, "w") as g:
-        json.dump(j, g)
+    unpinned_message_content = await ctx.bot.db.fetchval(
+        """
+        SELECT content FROM messages
+        WHERE pin=$1
+        ORDER_BY created_at;"""
+    )
+    # messages will be ON DELETE CASCADE'd
+    await ctx.bot.db.execute(
+        """
+        DELETE FROM pins
+        WHERE id=$1;""",
+        queryval,
+    )
+    await ctx.send(
+        f"Unpinned the pin at {format_for_feedback(unpinned_message_content)}"
+    )
 
 
 @commands.command()
